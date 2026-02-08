@@ -1,0 +1,144 @@
+* {
+  box-sizing: border-box;
+  font-family: Arial, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f4f8ff;
+  color: #1e2a3a;
+}
+
+.topo {
+  background: linear-gradient(135deg, #0a66ff, #1e90ff);
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+.logo {
+  font-size: 26px;
+  font-weight: bold;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.subtitulo {
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.container {
+  padding: 20px;
+}
+
+.status {
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 10px;
+}
+
+.card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+  margin-bottom: 25px;
+}
+
+.card h2 {
+  margin-top: 0;
+}
+
+input {
+  width: 100%;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1px solid #ccc;
+  margin-top: 10px;
+  font-size: 16px;
+}
+
+.btn-principal {
+  width: 100%;
+  margin-top: 15px;
+  padding: 14px;
+  border: none;
+  border-radius: 12px;
+  background: #0a66ff;
+  color: white;
+  font-size: 16px;
+}
+
+.resultado {
+  margin-top: 15px;
+  font-weight: bold;
+}
+
+.contador {
+  font-size: 14px;
+  opacity: 0.7;
+}
+
+.titulo-planos {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.planos {
+  display: flex;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.plano {
+  background: white;
+  border-radius: 16px;
+  padding: 15px;
+  flex: 1;
+  box-shadow: 0 6px 15px rgba(0,0,0,0.08);
+}
+
+.plano h4 {
+  margin-top: 0;
+}
+
+.plano.destaque {
+  border: 2px solid #0a66ff;
+}
+
+.btn-secundario {
+  margin-top: 10px;
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: none;
+  background: #e6efff;
+  color: #0a66ff;
+  font-weight: bold;
+}
+/* MODAL PAGAMENTO */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+/* ESCONDER MODAL */
+.hidden {
+  display: none;
+}
+
+/* CAIXA DO MODAL */
+.modal-box {
+  max-width: 420px;
+  width: 90%;
+}
