@@ -1,153 +1,102 @@
-from flask import Flask, render_template, request, jsonify, session, redirect
-import sqlite3
+from flask import Flask, render_template, request, jsonify
 from datetime import datetime, timedelta
+import uuid
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
-app.secret_key = "super_secret_key_detectorg"
 
-# =========================
-# BANCO DE DADOS
-# =========================
+# ===============================
+# BANCO SIMPLES EM MEMÓRIA
+# (Depois você pode trocar por banco real)
+# ===============================
 
-def init_db():
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+usuarios_pro = {}   # email -> data_expiracao
+codigos_pro = {}    # codigo -> usado (True/False)
 
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS codigos (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        codigo TEXT UNIQUE,
-        usado INTEGER DEFAULT 0,
-        data_ativacao TEXT,
-        data_expiracao TEXT
-    )
-    """)
-
-    conn.commit()
-    conn.close()
-
-init_db()
-
-# =========================
-# LOGIN
-# =========================
-
-@app.route("/login")
-def login():
-    return render_template("login.html")
-
-# =========================
-# HOME
-# =========================
+# ===============================
+# ROTAS PRINCIPAIS
+# ===============================
 
 @app.route("/")
 def index():
     return render_template("index.html")
 
-# =========================
+@app.route("/login")
+def login():
+    return render_template("login.html")
+
+# ===============================
+# GERAR CÓDIGO PRO (ADMIN)
+# ===============================
+
+@app.route("/gerar_codigo", methods=["POST"])
+def gerar_codigo():
+    novo_codigo = str(uuid.uuid4()).replace("-", "").upper()[:12]
+    codigos_pro[novo_codigo] = False
+    return jsonify({
+        "status": "ok",
+        "codigo": novo_codigo
+    })
+
+# ===============================
 # ATIVAR PRO
-# =========================
+# ===============================
 
 @app.route("/ativar_pro", methods=["POST"])
 def ativar_pro():
     data = request.get_json()
-    codigo = data.get("codigo", "").strip()
+    codigo = data.get("codigo")
+    email = data.get("email")
 
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
+    if not codigo or not email:
+        return jsonify({
+            "status": "erro",
+            "mensagem": "Dados inválidos"
+        })
 
-    cursor.execute("SELECT usado FROM codigos WHERE codigo = ?", (codigo,))
-    resultado = cursor.fetchone()
+    if codigo not in codigos_pro:
+        return jsonify({
+            "status": "erro",
+            "mensagem": "Código inválido"
+        })
 
-    if not resultado:
-        conn.close()
-        return jsonify({"status": "erro", "mensagem": "Código inválido"})
+    if codigos_pro[codigo] is True:
+        return jsonify({
+            "status": "erro",
+            "mensagem": "Código já utilizado"
+        })
 
-    if resultado[0] == 1:
-        conn.close()
-        return jsonify({"status": "erro", "mensagem": "Código já utilizado"})
+    # Marca código como usado
+    codigos_pro[codigo] = True
 
-    # Ativar código
-    data_ativacao = datetime.now()
-    data_expiracao = data_ativacao + timedelta(days=30)
+    # Ativa PRO por 30 dias
+    expiracao = datetime.now() + timedelta(days=30)
+    usuarios_pro[email] = expiracao
 
-    cursor.execute("""
-        UPDATE codigos
-        SET usado = 1,
-            data_ativacao = ?,
-            data_expiracao = ?
-        WHERE codigo = ?
-    """, (data_ativacao.isoformat(), data_expiracao.isoformat(), codigo))
+    return jsonify({
+        "status": "ok",
+        "expira_em": expiracao.strftime("%d/%m/%Y")
+    })
 
-    conn.commit()
-    conn.close()
+# ===============================
+# STATUS PRO
+# ===============================
 
-    session["pro"] = True
-    session["expira"] = data_expiracao.isoformat()
-
-    return jsonify({"status": "ok", "mensagem": "Plano PRO ativado por 30 dias"})
-
-# =========================
-# VERIFICAR LINK
-# =========================
-
-@app.route("/verificar", methods=["POST"])
-def verificar():
+@app.route("/status_pro", methods=["POST"])
+def status_pro():
     data = request.get_json()
-    link = data.get("link", "")
+    email = data.get("email")
 
-    if not link:
-        return jsonify({
-            "status": "erro",
-            "resultado": "Link vazio"
-        })
+    if email in usuarios_pro:
+        if datetime.now() < usuarios_pro[email]:
+            return jsonify({"pro": True})
+        else:
+            del usuarios_pro[email]
 
-    # Verifica se usuário é PRO
-    if "pro" not in session:
-        return jsonify({
-            "status": "erro",
-            "resultado": "Recurso disponível apenas para usuários PRO"
-        })
+    return jsonify({"pro": False})
 
-    # Verifica expiração
-    expira = datetime.fromisoformat(session["expira"])
-    if datetime.now() > expira:
-        session.clear()
-        return jsonify({
-            "status": "erro",
-            "resultado": "Plano PRO expirado"
-        })
+# ===============================
+# EXECUÇÃO
+# ===============================
 
-    # Simulação
-    if link.startswith("http"):
-        return jsonify({
-            "status": "ok",
-            "resultado": "Link aparentemente seguro"
-        })
-    else:
-        return jsonify({
-            "status": "alerta",
-            "resultado": "Link suspeito"
-        })
-
-# =========================
-# GERAR CÓDIGO (ADMIN)
-# =========================
-
-@app.route("/gerar_codigo")
-def gerar_codigo():
-    novo_codigo = f"PRO-{datetime.now().timestamp()}"
-
-    conn = sqlite3.connect("database.db")
-    cursor = conn.cursor()
-
-    cursor.execute("INSERT INTO codigos (codigo) VALUES (?)", (novo_codigo,))
-    conn.commit()
-    conn.close()
-
-    return jsonify({"codigo": novo_codigo})
-
-
-# ⚠️ NÃO DEFINA PORTA NA RENDER
 if __name__ == "__main__":
     app.run()
