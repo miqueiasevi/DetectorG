@@ -1,16 +1,36 @@
+
 from flask import Flask, render_template, request, jsonify
-import json, os, time
+import json, os, time, re
 from datetime import datetime, timedelta
-from deep_analysis import deep_scan  # ✅ Importa análise avançada PRO
+from deep_analysis import deep_scan
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
 CODIGOS_FILE = "codigos.json"
 USUARIOS_FILE = "usuarios.json"
+LOGS_FILE = "logs.json"
+
+# =========================
+# FUNÇÕES DE SEGURANÇA
+# =========================
+
+def limpar_input(texto):
+    if not texto:
+        return ""
+    return re.sub(r"[<>\"'%;()&+]", "", texto)
+
+def log_evento(msg):
+    logs = carregar_json(LOGS_FILE)
+    logs[str(time.time())] = msg
+    salvar_json(LOGS_FILE, logs)
+
+def usuario_existe(usuario):
+    return usuario in usuarios
 
 # =========================
 # FUNÇÕES DE JSON
 # =========================
+
 def carregar_json(arquivo):
     if os.path.exists(arquivo):
         with open(arquivo, "r") as f:
@@ -27,6 +47,7 @@ usuarios = carregar_json(USUARIOS_FILE)
 # =========================
 # ROTAS HTML
 # =========================
+
 @app.route("/")
 def index():
     return render_template("index.html")
@@ -42,11 +63,13 @@ def pro_system():
 # =========================
 # CADASTRAR CÓDIGO
 # =========================
+
 @app.route("/cadastrar_codigo", methods=["POST"])
 def cadastrar_codigo():
     data = request.get_json()
-    codigo = data.get("codigo")
-    tipo = data.get("tipo")  # individual ou familia
+
+    codigo = limpar_input(data.get("codigo"))
+    tipo = limpar_input(data.get("tipo"))
 
     if not codigo or not tipo:
         return jsonify({"status":"erro","mensagem":"Dados incompletos"})
@@ -57,16 +80,20 @@ def cadastrar_codigo():
     codigos[codigo] = {"usado": False, "criado": int(time.time()), "tipo": tipo}
     salvar_json(CODIGOS_FILE, codigos)
 
+    log_evento(f"Código criado: {codigo}")
+
     return jsonify({"status":"ok","mensagem":"Código cadastrado com sucesso"})
 
 # =========================
 # VALIDAR CÓDIGO
 # =========================
+
 @app.route("/validar_codigo", methods=["POST"])
 def validar_codigo():
     data = request.get_json()
-    codigo = data.get("codigo")
-    usuario = data.get("usuario")
+
+    codigo = limpar_input(data.get("codigo"))
+    usuario = limpar_input(data.get("usuario"))
 
     if not codigo or not usuario:
         return jsonify({"status":"erro","mensagem":"Código ou usuário vazio"})
@@ -81,13 +108,17 @@ def validar_codigo():
     codigos[codigo]["usado"] = True
     salvar_json(CODIGOS_FILE, codigos)
 
-    # Define expiração e tipo do plano
+    # Define expiração
     expira_em = datetime.now() + timedelta(days=30)
+
     usuarios[usuario] = {
         "expira_em": expira_em.isoformat(),
         "tipo_plano": codigos[codigo]["tipo"]
     }
+
     salvar_json(USUARIOS_FILE, usuarios)
+
+    log_evento(f"{usuario} ativou plano {codigos[codigo]['tipo']}")
 
     return jsonify({
         "status":"ok",
@@ -99,10 +130,11 @@ def validar_codigo():
 # =========================
 # VERIFICAR STATUS PRO
 # =========================
+
 @app.route("/status_pro", methods=["POST"])
 def status_pro():
     data = request.get_json()
-    usuario = data.get("usuario")
+    usuario = limpar_input(data.get("usuario"))
 
     if usuario not in usuarios:
         return jsonify({"pro": False})
@@ -119,22 +151,20 @@ def status_pro():
     return jsonify({"pro": False})
 
 # =========================
-# VERIFICAR LINK
+# ANÁLISE BÁSICA
 # =========================
+
 def basic_scan(link):
-    """Análise básica gratuita"""
     url = link.lower()
     riscos = []
     score = 0
 
-    # PHISHING
     phishing = ["login","verify","secure","account","update",".xyz",".top",".tk",".info"]
     for p in phishing:
         if p in url:
             riscos.append("Phishing")
             score += 30
 
-    # DRIVE-BY DOWNLOAD
     downloads = [".exe",".apk",".msi",".zip",".rar"]
     for d in downloads:
         if d in url:
@@ -147,26 +177,38 @@ def basic_scan(link):
 
     return {"nivel": nivel, "riscos": riscos}
 
+# =========================
+# VERIFICAR LINK
+# =========================
+
 @app.route("/verificar", methods=["POST"])
 def verificar():
     data = request.get_json()
-    link = data.get("link")
-    usuario = data.get("usuario")
+
+    link = limpar_input(data.get("link"))
+    usuario = limpar_input(data.get("usuario"))
 
     if not link or not usuario:
         return jsonify({"status":"erro","mensagem":"Link ou usuário vazio"})
 
-    # Busca se usuário é PRO
+    if not usuario_existe(usuario):
+        return jsonify({"status":"erro","mensagem":"Usuário inválido"})
+
+    # Verifica plano
     pro_status = usuarios.get(usuario, {}).get("tipo_plano")
+
     if pro_status:
-        resultado = deep_scan(link)      # análise avançada PRO
+        resultado = deep_scan(link)
     else:
-        resultado = basic_scan(link)     # análise básica gratuita
+        resultado = basic_scan(link)
+
+    log_evento(f"{usuario} analisou {link}")
 
     return jsonify({"status":"ok", "resultado": resultado})
 
 # =========================
 # RODAR APP
 # =========================
+
 if __name__ == "__main__":
     app.run()
