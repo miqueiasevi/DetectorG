@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-import json, os, time, re
+import json, os, time, re, requests
 from datetime import datetime, timedelta
 from deep_analysis import deep_scan
 
@@ -8,6 +8,8 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 CODIGOS_FILE = "codigos.json"
 USUARIOS_FILE = "usuarios.json"
 LOGS_FILE = "logs.json"
+
+MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN")
 
 # =========================
 # SEGURANÇA
@@ -64,72 +66,81 @@ def resultado():
     return render_template("resultado.html")
 
 # =========================
-# CADASTRAR CÓDIGO
+# PAGAMENTO PIX 🔥
 # =========================
 
-@app.route("/cadastrar_codigo", methods=["POST"])
-def cadastrar_codigo():
+@app.route("/criar_pagamento", methods=["POST"])
+def criar_pagamento():
     data = request.get_json()
-
-    codigo = limpar_input(data.get("codigo"))
-    tipo = limpar_input(data.get("tipo"))
-
-    if not codigo or not tipo:
-        return jsonify({"status":"erro","mensagem":"Dados incompletos"})
-
-    if codigo in codigos:
-        return jsonify({"status":"erro","mensagem":"Código já existe"})
-
-    codigos[codigo] = {
-        "usado": False,
-        "criado": int(time.time()),
-        "tipo": tipo
-    }
-
-    salvar_json(CODIGOS_FILE, codigos)
-    log_evento(f"Código criado: {codigo}")
-
-    return jsonify({"status":"ok","mensagem":"Código criado"})
-
-# =========================
-# VALIDAR CÓDIGO
-# =========================
-
-@app.route("/validar_codigo", methods=["POST"])
-def validar_codigo():
-    data = request.get_json()
-
-    codigo = limpar_input(data.get("codigo"))
     usuario = limpar_input(data.get("usuario"))
 
-    if not codigo or not usuario:
-        return jsonify({"status":"erro","mensagem":"Dados inválidos"})
+    if not usuario:
+        return jsonify({"status":"erro","mensagem":"Usuário inválido"})
 
-    if codigo not in codigos:
-        return jsonify({"status":"erro","mensagem":"Código inválido"})
+    url = "https://api.mercadopago.com/v1/payments"
 
-    if codigos[codigo]["usado"]:
-        return jsonify({"status":"erro","mensagem":"Código já usado"})
-
-    codigos[codigo]["usado"] = True
-    salvar_json(CODIGOS_FILE, codigos)
-
-    expira_em = datetime.now() + timedelta(days=30)
-
-    usuarios[usuario] = {
-        "expira_em": expira_em.isoformat(),
-        "tipo_plano": codigos[codigo]["tipo"]
+    headers = {
+        "Authorization": f"Bearer {MP_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
     }
 
-    salvar_json(USUARIOS_FILE, usuarios)
-    log_evento(f"{usuario} ativou plano {codigos[codigo]['tipo']}")
+    payload = {
+        "transaction_amount": 10.0,
+        "description": "Plano PRO DetectorG",
+        "payment_method_id": "pix",
+        "payer": {
+            "email": f"{usuario}@detectorg.com"
+        },
+        "external_reference": usuario
+    }
 
-    return jsonify({
-        "status":"ok",
-        "mensagem":"Plano ativado",
-        "tipo_plano": codigos[codigo]["tipo"],
-        "expira_em": expira_em.strftime("%d/%m/%Y")
-    })
+    resposta = requests.post(url, json=payload, headers=headers)
+    pagamento = resposta.json()
+
+    try:
+        qr = pagamento["point_of_interaction"]["transaction_data"]["qr_code"]
+        qr_base64 = pagamento["point_of_interaction"]["transaction_data"]["qr_code_base64"]
+
+        return jsonify({
+            "status":"ok",
+            "pix": qr,
+            "qr_code_base64": qr_base64
+        })
+    except:
+        return jsonify({"status":"erro","mensagem":"Erro ao gerar pagamento"})
+
+# =========================
+# WEBHOOK 🔥 (ATIVA PRO AUTOMÁTICO)
+# =========================
+
+@app.route("/webhook", methods=["POST"])
+def webhook():
+    data = request.get_json()
+
+    if data.get("type") == "payment":
+        payment_id = data["data"]["id"]
+
+        url = f"https://api.mercadopago.com/v1/payments/{payment_id}"
+        headers = {"Authorization": f"Bearer {MP_ACCESS_TOKEN}"}
+
+        resposta = requests.get(url, headers=headers)
+        pagamento = resposta.json()
+
+        if pagamento.get("status") == "approved":
+            usuario = pagamento.get("external_reference")
+
+            if usuario:
+                expira_em = datetime.now() + timedelta(days=30)
+
+                usuarios[usuario] = {
+                    "expira_em": expira_em.isoformat(),
+                    "tipo_plano": "pro"
+                }
+
+                salvar_json(USUARIOS_FILE, usuarios)
+                log_evento(f"Pagamento aprovado: {usuario}")
+
+    return jsonify({"status":"ok"})
 
 # =========================
 # STATUS PRO
@@ -155,7 +166,7 @@ def status_pro():
     return jsonify({"pro": False})
 
 # =========================
-# ANÁLISE BÁSICA (FREE)
+# ANÁLISE BÁSICA
 # =========================
 
 def basic_scan(link):
@@ -163,12 +174,10 @@ def basic_scan(link):
     riscos = []
     score = 0
 
-    # PHISHING
     if any(p in url for p in ["login","verify","secure","account",".xyz",".tk",".top"]):
         riscos.append("Phishing")
         score += 30
 
-    # DOWNLOAD MALICIOSO
     if any(d in url for d in [".exe",".apk",".zip",".rar",".msi"]):
         riscos.append("Drive-by Download")
         score += 50
@@ -204,9 +213,9 @@ def verificar():
     pro_status = usuarios.get(usuario, {}).get("tipo_plano")
 
     if pro_status:
-        resultado = deep_scan(link)  # PRO 🔥
+        resultado = deep_scan(link)
     else:
-        resultado = basic_scan(link)  # FREE
+        resultado = basic_scan(link)
 
     log_evento(f"{usuario} analisou {link}")
 
