@@ -2,3 +2,5 @@ flask
 flask-limiter
 bcrypt
 mercadopago
+requests
+gunicorn
