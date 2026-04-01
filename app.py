@@ -66,12 +66,15 @@ def resultado():
     return render_template("resultado.html")
 
 # =========================
-# PAGAMENTO PIX 🔥
+# PAGAMENTO PIX
 # =========================
 
 @app.route("/criar_pagamento", methods=["POST"])
 def criar_pagamento():
-    data = request.get_json()
+    if not MP_ACCESS_TOKEN:
+        return jsonify({"status":"erro","mensagem":"Token não configurado"})
+
+    data = request.get_json(silent=True) or {}
     usuario = limpar_input(data.get("usuario"))
 
     if not usuario:
@@ -94,10 +97,10 @@ def criar_pagamento():
         "external_reference": usuario
     }
 
-    resposta = requests.post(url, json=payload, headers=headers)
-    pagamento = resposta.json()
-
     try:
+        resposta = requests.post(url, json=payload, headers=headers)
+        pagamento = resposta.json()
+
         qr = pagamento["point_of_interaction"]["transaction_data"]["qr_code"]
         qr_base64 = pagamento["point_of_interaction"]["transaction_data"]["qr_code_base64"]
 
@@ -106,39 +109,50 @@ def criar_pagamento():
             "pix": qr,
             "qr_code_base64": qr_base64
         })
-    except:
+
+    except Exception as e:
+        log_evento(f"Erro pagamento: {str(e)}")
         return jsonify({"status":"erro","mensagem":"Erro ao gerar pagamento"})
 
 # =========================
-# WEBHOOK 🔥 (ATIVA PRO AUTOMÁTICO)
+# WEBHOOK (ATIVA PRO)
 # =========================
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
-    if data.get("type") == "payment":
-        payment_id = data["data"]["id"]
+    if not data:
+        return jsonify({"status":"erro"})
 
-        url = f"https://api.mercadopago.com/v1/payments/{payment_id}"
-        headers = {"Authorization": f"Bearer {MP_ACCESS_TOKEN}"}
+    try:
+        if data.get("type") == "payment":
+            payment_id = data["data"]["id"]
 
-        resposta = requests.get(url, headers=headers)
-        pagamento = resposta.json()
+            url = f"https://api.mercadopago.com/v1/payments/{payment_id}"
+            headers = {"Authorization": f"Bearer {MP_ACCESS_TOKEN}"}
 
-        if pagamento.get("status") == "approved":
-            usuario = pagamento.get("external_reference")
+            resposta = requests.get(url, headers=headers)
+            pagamento = resposta.json()
 
-            if usuario:
-                expira_em = datetime.now() + timedelta(days=30)
+            if pagamento.get("status") == "approved":
+                usuario = pagamento.get("external_reference")
 
-                usuarios[usuario] = {
-                    "expira_em": expira_em.isoformat(),
-                    "tipo_plano": "pro"
-                }
+                if usuario:
+                    expira_em = datetime.now() + timedelta(days=30)
 
-                salvar_json(USUARIOS_FILE, usuarios)
-                log_evento(f"Pagamento aprovado: {usuario}")
+                    usuarios[usuario] = {
+                        "expira_em": expira_em.isoformat(),
+                        "tipo_plano": "pro"
+                    }
+
+                    salvar_json(USUARIOS_FILE, usuarios)
+                    log_evento(f"Pagamento aprovado: {usuario}")
+            else:
+                log_evento("Pagamento não aprovado")
+
+    except Exception as e:
+        log_evento(f"Erro webhook: {str(e)}")
 
     return jsonify({"status":"ok"})
 
@@ -148,7 +162,7 @@ def webhook():
 
 @app.route("/status_pro", methods=["POST"])
 def status_pro():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     usuario = limpar_input(data.get("usuario"))
 
     if usuario not in usuarios:
@@ -166,7 +180,7 @@ def status_pro():
     return jsonify({"pro": False})
 
 # =========================
-# ANÁLISE BÁSICA
+# ANÁLISE FREE
 # =========================
 
 def basic_scan(link):
@@ -199,7 +213,7 @@ def basic_scan(link):
 
 @app.route("/verificar", methods=["POST"])
 def verificar():
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
 
     link = limpar_input(data.get("link"))
     usuario = limpar_input(data.get("usuario"))
