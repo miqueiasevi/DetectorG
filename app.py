@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify
 import json, os, time, re
 from datetime import datetime, timedelta
 from deep_analysis import deep_scan
-import mercadopago
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
@@ -10,12 +9,8 @@ CODIGOS_FILE = "codigos.json"
 USUARIOS_FILE = "usuarios.json"
 LOGS_FILE = "logs.json"
 
-# 🔐 TOKEN MERCADO PAGO
-MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN")
-sdk = mercadopago.SDK(MP_ACCESS_TOKEN)
-
 # =========================
-# FUNÇÕES DE SEGURANÇA
+# SEGURANÇA
 # =========================
 
 def limpar_input(texto):
@@ -32,7 +27,7 @@ def usuario_existe(usuario):
     return usuario in usuarios
 
 # =========================
-# FUNÇÕES DE JSON
+# JSON
 # =========================
 
 def carregar_json(arquivo):
@@ -43,25 +38,10 @@ def carregar_json(arquivo):
 
 def salvar_json(arquivo, dados):
     with open(arquivo, "w") as f:
-        json.dump(dados, f)
+        json.dump(dados, f, indent=4)
 
 codigos = carregar_json(CODIGOS_FILE)
 usuarios = carregar_json(USUARIOS_FILE)
-
-# =========================
-# FUNÇÃO ATIVAR PLANO
-# =========================
-
-def ativar_plano(email, tipo):
-    expira_em = datetime.now() + timedelta(days=30)
-
-    usuarios[email] = {
-        "expira_em": expira_em.isoformat(),
-        "tipo_plano": tipo
-    }
-
-    salvar_json(USUARIOS_FILE, usuarios)
-    log_evento(f"{email} ativou plano via pagamento ({tipo})")
 
 # =========================
 # ROTAS HTML
@@ -79,71 +59,9 @@ def login():
 def pro_system():
     return render_template("pro-system.html")
 
-# =========================
-# PAGAMENTO PIX
-# =========================
-
-@app.route("/criar_pagamento", methods=["POST"])
-def criar_pagamento():
-    data = request.get_json()
-
-    email = limpar_input(data.get("email"))
-    tipo = limpar_input(data.get("tipo"))
-
-    if not email or not tipo:
-        return jsonify({"erro":"Dados inválidos"})
-
-    if tipo == "individual":
-        valor = 19.90
-    elif tipo == "familia":
-        valor = 39.90
-    else:
-        return jsonify({"erro":"Plano inválido"})
-
-    pagamento = sdk.payment().create({
-        "transaction_amount": valor,
-        "description": f"DetectorG - {tipo}",
-        "payment_method_id": "pix",
-        "payer": {"email": email}
-    })
-
-    resposta = pagamento["response"]
-
-    return jsonify({
-        "qr_code_base64": resposta["point_of_interaction"]["transaction_data"]["qr_code_base64"],
-        "payment_id": resposta["id"]
-    })
-
-# =========================
-# WEBHOOK (CONFIRMA PAGAMENTO)
-# =========================
-
-@app.route("/webhook", methods=["POST"])
-def webhook():
-    data = request.json
-
-    if data.get("type") == "payment":
-        payment_id = data["data"]["id"]
-
-        pagamento = sdk.payment().get(payment_id)
-        resposta = pagamento["response"]
-
-        status = resposta["status"]
-
-        if status == "approved":
-            email = resposta["payer"]["email"]
-            descricao = resposta["description"]
-            valor = resposta["transaction_amount"]
-
-            # Segurança
-            if valor not in [19.90, 39.90]:
-                return "valor inválido"
-
-            tipo = "individual" if "individual" in descricao.lower() else "familia"
-
-            ativar_plano(email, tipo)
-
-    return "ok"
+@app.route("/resultado")
+def resultado():
+    return render_template("resultado.html")
 
 # =========================
 # CADASTRAR CÓDIGO
@@ -162,12 +80,16 @@ def cadastrar_codigo():
     if codigo in codigos:
         return jsonify({"status":"erro","mensagem":"Código já existe"})
 
-    codigos[codigo] = {"usado": False, "criado": int(time.time()), "tipo": tipo}
-    salvar_json(CODIGOS_FILE, codigos)
+    codigos[codigo] = {
+        "usado": False,
+        "criado": int(time.time()),
+        "tipo": tipo
+    }
 
+    salvar_json(CODIGOS_FILE, codigos)
     log_evento(f"Código criado: {codigo}")
 
-    return jsonify({"status":"ok","mensagem":"Código cadastrado com sucesso"})
+    return jsonify({"status":"ok","mensagem":"Código criado"})
 
 # =========================
 # VALIDAR CÓDIGO
@@ -181,13 +103,13 @@ def validar_codigo():
     usuario = limpar_input(data.get("usuario"))
 
     if not codigo or not usuario:
-        return jsonify({"status":"erro","mensagem":"Código ou usuário vazio"})
+        return jsonify({"status":"erro","mensagem":"Dados inválidos"})
 
     if codigo not in codigos:
         return jsonify({"status":"erro","mensagem":"Código inválido"})
 
     if codigos[codigo]["usado"]:
-        return jsonify({"status":"erro","mensagem":"Código já utilizado"})
+        return jsonify({"status":"erro","mensagem":"Código já usado"})
 
     codigos[codigo]["usado"] = True
     salvar_json(CODIGOS_FILE, codigos)
@@ -200,12 +122,11 @@ def validar_codigo():
     }
 
     salvar_json(USUARIOS_FILE, usuarios)
-
     log_evento(f"{usuario} ativou plano {codigos[codigo]['tipo']}")
 
     return jsonify({
         "status":"ok",
-        "mensagem":"Plano ativado com sucesso",
+        "mensagem":"Plano ativado",
         "tipo_plano": codigos[codigo]["tipo"],
         "expira_em": expira_em.strftime("%d/%m/%Y")
     })
@@ -234,7 +155,7 @@ def status_pro():
     return jsonify({"pro": False})
 
 # =========================
-# ANÁLISE BÁSICA
+# ANÁLISE BÁSICA (FREE)
 # =========================
 
 def basic_scan(link):
@@ -242,11 +163,13 @@ def basic_scan(link):
     riscos = []
     score = 0
 
-    if any(p in url for p in ["login","verify","secure","account",".xyz",".tk"]):
+    # PHISHING
+    if any(p in url for p in ["login","verify","secure","account",".xyz",".tk",".top"]):
         riscos.append("Phishing")
         score += 30
 
-    if any(d in url for d in [".exe",".apk",".zip",".rar"]):
+    # DOWNLOAD MALICIOSO
+    if any(d in url for d in [".exe",".apk",".zip",".rar",".msi"]):
         riscos.append("Drive-by Download")
         score += 50
 
@@ -254,7 +177,12 @@ def basic_scan(link):
     if score >= 30: nivel = "🟡 Médio"
     if score >= 70: nivel = "🔴 Alto"
 
-    return {"nivel": nivel, "riscos": riscos}
+    return {
+        "modo": "FREE",
+        "nivel": nivel,
+        "score": score,
+        "riscos": riscos
+    }
 
 # =========================
 # VERIFICAR LINK
@@ -268,7 +196,7 @@ def verificar():
     usuario = limpar_input(data.get("usuario"))
 
     if not link or not usuario:
-        return jsonify({"status":"erro","mensagem":"Link ou usuário vazio"})
+        return jsonify({"status":"erro","mensagem":"Dados inválidos"})
 
     if not usuario_existe(usuario):
         return jsonify({"status":"erro","mensagem":"Usuário inválido"})
@@ -276,16 +204,19 @@ def verificar():
     pro_status = usuarios.get(usuario, {}).get("tipo_plano")
 
     if pro_status:
-        resultado = deep_scan(link)
+        resultado = deep_scan(link)  # PRO 🔥
     else:
-        resultado = basic_scan(link)
+        resultado = basic_scan(link)  # FREE
 
     log_evento(f"{usuario} analisou {link}")
 
-    return jsonify({"status":"ok", "resultado": resultado})
+    return jsonify({
+        "status":"ok",
+        "resultado": resultado
+    })
 
 # =========================
-# RODAR
+# INICIAR
 # =========================
 
 if __name__ == "__main__":
