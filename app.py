@@ -221,12 +221,17 @@ def verificar():
     if not link or not usuario:
         return jsonify({"status":"erro","mensagem":"Dados inválidos"})
 
+    # 🔥 CORREÇÃO AQUI (cria usuário automático)
     if not usuario_existe(usuario):
-        return jsonify({"status":"erro","mensagem":"Usuário inválido"})
+        usuarios[usuario] = {
+            "expira_em": datetime.now().isoformat(),
+            "tipo_plano": "free"
+        }
+        salvar_json(USUARIOS_FILE, usuarios)
 
     pro_status = usuarios.get(usuario, {}).get("tipo_plano")
 
-    if pro_status:
+    if pro_status == "pro":
         resultado = deep_scan(link)
     else:
         resultado = basic_scan(link)
@@ -243,4 +248,4 @@ def verificar():
 # =========================
 
 if __name__ == "__main__":
-    app.run()
+    app.run(host="0.0.0.0", port=10000)
