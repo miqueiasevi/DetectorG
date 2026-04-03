@@ -57,9 +57,7 @@ def index():
 def login():
     return render_template("login.html")
 
-@app.route("/pro-system")
-def pro_system():
-    return render_template("pro-system.html")
+# 🔥 REMOVIDO pro-system (causava erro se não existir arquivo)
 
 @app.route("/resultado")
 def resultado():
@@ -148,8 +146,6 @@ def webhook():
 
                     salvar_json(USUARIOS_FILE, usuarios)
                     log_evento(f"Pagamento aprovado: {usuario}")
-            else:
-                log_evento("Pagamento não aprovado")
 
     except Exception as e:
         log_evento(f"Erro webhook: {str(e)}")
@@ -221,7 +217,7 @@ def verificar():
     if not link or not usuario:
         return jsonify({"status":"erro","mensagem":"Dados inválidos"})
 
-    # 🔥 CORREÇÃO AQUI (cria usuário automático)
+    # cria usuário automaticamente
     if not usuario_existe(usuario):
         usuarios[usuario] = {
             "expira_em": datetime.now().isoformat(),
