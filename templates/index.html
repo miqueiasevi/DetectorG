@@ -6,7 +6,7 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-  <!-- CSS correto no Flask -->
+  <!-- CSS Flask -->
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
@@ -42,23 +42,26 @@
   <h3 class="titulo-planos">Plano pago</h3>
 
   <div class="planos">
-    <div class="plano destaque" onclick="abrirPagamento()" style="cursor:pointer;">
+    <div class="plano destaque">
+
       <h4><i class="fa-solid fa-star"></i> PRO</h4>
       <p>✔ Verificações ilimitadas</p>
       <p>✔ Detecção avançada</p>
       <p>✔ Sem anúncios</p>
 
-      <button class="btn-secundario" type="button">
+      <!-- 🔥 CORREÇÃO: clique no botão -->
+      <button class="btn-secundario" type="button" onclick="abrirPagamento()">
         Assinar PRO
       </button>
+
     </div>
   </div>
 
 </main>
 
 <!-- MODAL -->
-<div id="pagamento" class="modal hidden">
-  <div class="modal-box plano destaque">
+<div id="pagamento" class="modal hidden" onclick="fecharPagamento()">
+  <div class="modal-box plano destaque" onclick="event.stopPropagation()">
 
     <h4><i class="fa-solid fa-star"></i> Plano PRO</h4>
     <p><strong>Valor:</strong> R$ 9,90/mês</p>
@@ -82,8 +85,14 @@
 let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);
 localStorage.setItem("usuario", usuario);
 
-// MOSTRAR USUÁRIO
-document.getElementById("usuarioLogado").innerText = "Usuário: " + usuario;
+// ESPERA CARREGAR A PÁGINA
+document.addEventListener("DOMContentLoaded", () => {
+
+  // MOSTRAR USUÁRIO
+  document.getElementById("usuarioLogado").innerText = "Usuário: " + usuario;
+
+  carregarStatus();
+});
 
 // STATUS
 async function carregarStatus() {
@@ -129,7 +138,6 @@ async function verificarLink() {
       `<b>Nível:</b> ${data.resultado.nivel}<br>
        <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;
 
-    // 🔥 CORREÇÃO IMPORTANTE
     if (data.restantes !== undefined) {
       document.getElementById("contador").innerText =
         "Restantes hoje: " + data.restantes;
@@ -151,7 +159,7 @@ function fecharPagamento() {
   document.getElementById("pagamento").classList.add("hidden");
 }
 
-// ATIVAR PRO (SIMULAÇÃO)
+// ATIVAR PRO
 function ativarPRO() {
   fetch("/ativar_manual", {
     method: "POST",
@@ -170,9 +178,6 @@ function copiarPix() {
   document.execCommand("copy");
   alert("Pix copiado!");
 }
-
-// INIT
-carregarStatus();
 </script>
 
 </body>
