@@ -5,7 +5,6 @@
   <title>DetectorG</title>
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
@@ -47,6 +46,7 @@
       <p>✔ Detecção avançada</p>
       <p>✔ Sem anúncios</p>
 
+      <!-- 🔥 BOTÃO CORRETO -->
       <button class="btn-secundario" onclick="gerarPagamento()">
         Assinar PRO
       </button>
@@ -63,7 +63,7 @@
     <p><strong>Valor:</strong> R$ 9,90</p>
 
     <!-- QR CODE -->
-    <img id="qrCode" style="width:200px; display:none; margin:auto;">
+    <img id="qrCode" style="width:200px; display:none; margin:20px auto;">
 
     <!-- PIX COPIAR -->
     <textarea id="pixCode" readonly style="width:100%; display:none;"></textarea>
@@ -88,16 +88,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
 // STATUS
 async function carregarStatus() {
-  const res = await fetch("/status_pro", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ usuario })
-  });
+  try {
+    const res = await fetch("/status_pro", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ usuario })
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  document.getElementById("status").innerText =
-    data.pro ? "🔥 PRO ativo" : "Plano FREE (3/dia)";
+    document.getElementById("status").innerText =
+      data.pro ? "🔥 PRO ativo" : "Plano FREE (3/dia)";
+
+  } catch {
+    document.getElementById("status").innerText = "Erro ao conectar com servidor";
+  }
 }
 
 // VERIFICAR LINK
@@ -129,31 +134,38 @@ async function verificarLink() {
   }
 }
 
-// 🔥 GERAR PAGAMENTO REAL (MERCADO PAGO)
+// 🔥 PAGAMENTO REAL MERCADO PAGO
 async function gerarPagamento() {
 
   abrirPagamento();
 
-  const res = await fetch("/criar_pagamento", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ usuario })
-  });
+  try {
+    const res = await fetch("/criar_pagamento", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ usuario })
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  if (data.status === "ok") {
+    if (data.status === "ok") {
 
-    document.getElementById("qrCode").src =
-      "data:image/png;base64," + data.qr_code_base64;
+      // QR CODE
+      document.getElementById("qrCode").src =
+        "data:image/png;base64," + data.qr_code_base64;
 
-    document.getElementById("qrCode").style.display = "block";
+      document.getElementById("qrCode").style.display = "block";
 
-    document.getElementById("pixCode").value = data.pix;
-    document.getElementById("pixCode").style.display = "block";
+      // PIX COPIA E COLA
+      document.getElementById("pixCode").value = data.pix;
+      document.getElementById("pixCode").style.display = "block";
 
-  } else {
-    alert("Erro ao gerar pagamento");
+    } else {
+      alert(data.mensagem || "Erro ao gerar pagamento");
+    }
+
+  } catch {
+    alert("Erro ao conectar com servidor");
   }
 }
 
@@ -166,11 +178,10 @@ function fecharPagamento() {
   document.getElementById("pagamento").classList.add("hidden");
 }
 
-// COPIAR PIX
+// COPIAR PIX (🔥 MELHORADO)
 function copiarPix() {
   let pix = document.getElementById("pixCode");
-  pix.select();
-  document.execCommand("copy");
+  navigator.clipboard.writeText(pix.value);
   alert("Pix copiado!");
 }
 </script>
