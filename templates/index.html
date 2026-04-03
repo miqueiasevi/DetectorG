@@ -1,120 +1,112 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>DetectorG</title>
+  <meta charset="UTF-8">
+  <title>DetectorG</title>
 
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-<style>
-body {
-  margin: 0;
-  font-family: Arial;
-  background: #0f172a;
-  color: white;
-}
-
-header {
-  background: #1e3a8a;
-  padding: 15px;
-  text-align: center;
-  font-size: 22px;
-  font-weight: bold;
-}
-
-.container {
-  max-width: 900px;
-  margin: auto;
-  padding: 20px;
-}
-
-.card {
-  background: white;
-  color: black;
-  padding: 20px;
-  border-radius: 12px;
-  margin-bottom: 20px;
-}
-
-input {
-  width: 100%;
-  padding: 10px;
-  margin-top: 10px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
-}
-
-button {
-  margin-top: 10px;
-  padding: 10px;
-  width: 100%;
-  border: none;
-  border-radius: 8px;
-  background: #2563eb;
-  color: white;
-  font-weight: bold;
-  cursor: pointer;
-}
-
-.pro-card {
-  background: linear-gradient(135deg, #1e3a8a, #2563eb);
-  padding: 20px;
-  border-radius: 12px;
-  text-align: center;
-}
-
-.pro-btn {
-  background: #facc15;
-  color: black;
-}
-
-#pix-area img {
-  margin-top: 10px;
-}
-</style>
+  <!-- 🔥 CORREÇÃO IMPORTANTE -->
+  <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
 <body>
 
-<header>
-  🛡️ DetectorG
+<header class="topo">
+  <div class="logo">
+    <i class="fa-solid fa-shield-halved"></i>
+    <span>DetectorG</span>
+  </div>
+  <p id="usuarioLogado" class="subtitulo"></p>
 </header>
 
-<div class="container">
+<main class="container">
 
-  <!-- FREE -->
+  <p id="status" class="status"></p>
+
+  <!-- CARD VERIFICADOR -->
   <div class="card">
-    <h2>🔎 Verificar Link</h2>
-    <input id="link" placeholder="Cole o link aqui">
-    <button onclick="verificar()">Verificar</button>
-    <p id="resultado"></p>
+    <h2><i class="fa-solid fa-link"></i> Verificar link ou site</h2>
+
+    <input id="link" type="text" placeholder="Cole o link ou site aqui">
+
+    <button class="btn-principal" onclick="verificarLink()">
+      <i class="fa-solid fa-magnifying-glass"></i> Verificar
+    </button>
+
+    <p id="resultado" class="resultado"></p>
+    <p id="contador" class="contador"></p>
   </div>
 
-  <!-- PRO -->
-  <div class="pro-card">
-    <h2>🚀 Plano PRO</h2>
-    <p>✔ Análise avançada</p>
-    <p>✔ Detecção de phishing</p>
-    <p>✔ Score completo</p>
+  <!-- PLANOS -->
+  <h3 class="titulo-planos">Plano pago</h3>
 
-    <button class="pro-btn" onclick="comprar()">Ativar por R$10</button>
+  <div class="planos">
+    <div class="plano destaque" onclick="abrirPagamento()" style="cursor:pointer;">
+      <h4><i class="fa-solid fa-star"></i> PRO</h4>
+      <p>✔ Verificações ilimitadas</p>
+      <p>✔ Detecção avançada</p>
+      <p>✔ Sem anúncios</p>
 
-    <div id="pix-area"></div>
+      <button class="btn-secundario" type="button">
+        Assinar PRO
+      </button>
+    </div>
   </div>
 
+</main>
+
+<!-- MODAL -->
+<div id="pagamento" class="modal hidden">
+  <div class="modal-box plano destaque">
+
+    <h4><i class="fa-solid fa-star"></i> Plano PRO</h4>
+    <p><strong>Valor:</strong> R$ 9,90/mês</p>
+
+    <p><strong>Chave Pix:</strong></p>
+
+    <div class="pix-box">
+      <input id="pixKey" type="text" readonly value="53596e06-332a-4bcd-b6fd-57ed712bc14d">
+      <button class="btn-secundario" onclick="copiarPix()">Copiar</button>
+    </div>
+
+    <p class="info">Após pagar, clique em ativar PRO</p>
+
+    <button class="btn-principal" onclick="ativarPRO()">Ativar PRO</button>
+    <button class="fechar" onclick="fecharPagamento()">Cancelar</button>
+
+  </div>
 </div>
 
+<!-- 🔥 SCRIPT INTEGRADO -->
 <script>
 let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);
 localStorage.setItem("usuario", usuario);
 
-// VERIFICAR LINK
-async function verificar() {
+// STATUS
+async function carregarStatus() {
+  const res = await fetch("/status_pro", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ usuario })
+  });
+
+  const data = await res.json();
+
+  if (data.pro) {
+    document.getElementById("status").innerText = "🔥 PRO ativo";
+  } else {
+    document.getElementById("status").innerText = "Plano FREE (3/dia)";
+  }
+}
+
+// VERIFICAR
+async function verificarLink() {
   let link = document.getElementById("link").value;
 
   const res = await fetch("/verificar", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ link, usuario })
   });
 
@@ -122,30 +114,47 @@ async function verificar() {
 
   if (data.status === "ok") {
     document.getElementById("resultado").innerHTML =
-      "Nível: " + data.resultado.nivel +
-      "<br>Riscos: " + data.resultado.riscos.join(", ");
+      `<b>Nível:</b> ${data.resultado.nivel}<br>
+       <b>Riscos:</b> ${data.resultado.riscos.join(", ")}`;
+
+    document.getElementById("contador").innerText =
+      "Restantes hoje: " + data.restantes;
+  } else {
+    document.getElementById("resultado").innerText = data.mensagem;
   }
 }
 
-// COMPRAR PRO
-async function comprar() {
-  const res = await fetch("/criar_pagamento", {
+// MODAL
+function abrirPagamento() {
+  document.getElementById("pagamento").classList.remove("hidden");
+}
+
+function fecharPagamento() {
+  document.getElementById("pagamento").classList.add("hidden");
+}
+
+// ATIVAR PRO (TESTE)
+function ativarPRO() {
+  fetch("/ativar_manual", {
     method: "POST",
-    headers: {"Content-Type": "application/json"},
+    headers: {"Content-Type":"application/json"},
     body: JSON.stringify({ usuario })
+  }).then(() => {
+    alert("PRO ativado!");
+    location.reload();
   });
-
-  const data = await res.json();
-
-  if (data.status === "ok") {
-    document.getElementById("pix-area").innerHTML = `
-      <p>Escaneie o QR Code:</p>
-      <img src="data:image/png;base64,${data.qr_code_base64}" width="200"/>
-      <p>PIX copia e cola:</p>
-      <textarea>${data.pix}</textarea>
-    `;
-  }
 }
+
+// COPIAR PIX
+function copiarPix() {
+  let pix = document.getElementById("pixKey");
+  pix.select();
+  document.execCommand("copy");
+  alert("Pix copiado!");
+}
+
+// INIT
+carregarStatus();
 </script>
 
 </body>
