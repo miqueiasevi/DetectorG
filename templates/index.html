@@ -6,7 +6,7 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-  <!-- 🔥 CORREÇÃO IMPORTANTE -->
+  <!-- CSS correto no Flask -->
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
@@ -24,7 +24,7 @@
 
   <p id="status" class="status"></p>
 
-  <!-- CARD VERIFICADOR -->
+  <!-- VERIFICADOR -->
   <div class="card">
     <h2><i class="fa-solid fa-link"></i> Verificar link ou site</h2>
 
@@ -78,31 +78,42 @@
   </div>
 </div>
 
-<!-- 🔥 SCRIPT INTEGRADO -->
 <script>
 let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);
 localStorage.setItem("usuario", usuario);
 
+// MOSTRAR USUÁRIO
+document.getElementById("usuarioLogado").innerText = "Usuário: " + usuario;
+
 // STATUS
 async function carregarStatus() {
-  const res = await fetch("/status_pro", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ usuario })
-  });
+  try {
+    const res = await fetch("/status_pro", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ usuario })
+    });
 
-  const data = await res.json();
+    const data = await res.json();
 
-  if (data.pro) {
-    document.getElementById("status").innerText = "🔥 PRO ativo";
-  } else {
-    document.getElementById("status").innerText = "Plano FREE (3/dia)";
+    if (data.pro) {
+      document.getElementById("status").innerText = "🔥 PRO ativo";
+    } else {
+      document.getElementById("status").innerText = "Plano FREE (3/dia)";
+    }
+  } catch {
+    document.getElementById("status").innerText = "Erro ao conectar com servidor";
   }
 }
 
-// VERIFICAR
+// VERIFICAR LINK
 async function verificarLink() {
   let link = document.getElementById("link").value;
+
+  if (!link) {
+    alert("Digite um link!");
+    return;
+  }
 
   const res = await fetch("/verificar", {
     method: "POST",
@@ -113,12 +124,19 @@ async function verificarLink() {
   const data = await res.json();
 
   if (data.status === "ok") {
+
     document.getElementById("resultado").innerHTML =
       `<b>Nível:</b> ${data.resultado.nivel}<br>
-       <b>Riscos:</b> ${data.resultado.riscos.join(", ")}`;
+       <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;
 
-    document.getElementById("contador").innerText =
-      "Restantes hoje: " + data.restantes;
+    // 🔥 CORREÇÃO IMPORTANTE
+    if (data.restantes !== undefined) {
+      document.getElementById("contador").innerText =
+        "Restantes hoje: " + data.restantes;
+    } else {
+      document.getElementById("contador").innerText = "";
+    }
+
   } else {
     document.getElementById("resultado").innerText = data.mensagem;
   }
@@ -133,7 +151,7 @@ function fecharPagamento() {
   document.getElementById("pagamento").classList.add("hidden");
 }
 
-// ATIVAR PRO (TESTE)
+// ATIVAR PRO (SIMULAÇÃO)
 function ativarPRO() {
   fetch("/ativar_manual", {
     method: "POST",
