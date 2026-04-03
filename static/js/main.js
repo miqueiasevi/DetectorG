@@ -5,37 +5,22 @@ let dados = JSON.parse(localStorage.getItem("detectorg")) || {};
 // ================= LOGIN =================
 
 function verificarLogin() {
-    const usuario = localStorage.getItem("detectorG_usuario");
+    let usuario = localStorage.getItem("usuario");
+
     if (!usuario) {
-        window.location.href = "login.html";
-        return;
+        usuario = "user_" + Math.floor(Math.random() * 10000);
+        localStorage.setItem("usuario", usuario);
     }
 
     if (!dados[usuario]) {
         dados[usuario] = {
             data: hoje,
-            usos: 0,
-            pro: false
+            usos: 0
         };
     }
 
     verificarStatusServidor();
     atualizarContador();
-}
-
-function fazerLogin() {
-    const email = document.getElementById("emailLogin").value.trim();
-    if (!email) {
-        alert("Digite seu e-mail");
-        return;
-    }
-    localStorage.setItem("detectorG_usuario", email);
-    window.location.href = "index.html";
-}
-
-function logout() {
-    localStorage.removeItem("detectorG_usuario");
-    window.location.href = "login.html";
 }
 
 // ================= RESET DIÁRIO =================
@@ -50,85 +35,100 @@ function resetDiario(usuario) {
 
 // ================= VERIFICAR LINK =================
 
-function verificarLink() {
-    const usuario = localStorage.getItem("detectorG_usuario");
+async function verificarLink() {
+    const usuario = localStorage.getItem("usuario");
     resetDiario(usuario);
 
-    if (!dados[usuario].pro && dados[usuario].usos >= LIMITE_DIARIO) {
-        alert("Limite diário atingido.");
-        return;
-    }
-
     const link = document.getElementById("link").value.trim();
+
     if (!link) {
         alert("Digite um link.");
         return;
     }
 
-    alert("Link analisado com sucesso!");
-
-    if (!dados[usuario].pro) {
-        dados[usuario].usos++;
-        salvar();
-    }
-
-    atualizarContador();
-}
-
-// ================= ATIVAR PRO =================
-
-function ativarPRO() {
-    const usuario = localStorage.getItem("detectorG_usuario");
-    const codigo = document.getElementById("codigoPRO").value.trim();
-
-    fetch("/ativar_pro", {
+    const res = await fetch("/verificar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            codigo: codigo,
-            email: usuario
-        })
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.status === "ok") {
-            alert("PRO ativado até " + data.expira_em);
-            verificarStatusServidor();
-        } else {
-            alert(data.mensagem);
-        }
+        body: JSON.stringify({ link, usuario })
     });
+
+    const data = await res.json();
+
+    if (data.status === "ok") {
+
+        document.getElementById("resultado").innerHTML =
+            `<b>Nível:</b> ${data.resultado.nivel}<br>
+             <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;
+
+        if (data.restantes !== undefined) {
+            document.getElementById("contador").innerText =
+                "Restantes hoje: " + data.restantes;
+        }
+
+    } else {
+        alert(data.mensagem);
+    }
 }
 
 // ================= STATUS SERVIDOR =================
 
-function verificarStatusServidor() {
-    const usuario = localStorage.getItem("detectorG_usuario");
+async function verificarStatusServidor() {
+    const usuario = localStorage.getItem("usuario");
 
-    fetch("/status_pro", {
+    const res = await fetch("/status_pro", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: usuario })
-    })
-    .then(res => res.json())
-    .then(data => {
-        dados[usuario].pro = data.pro;
-        salvar();
-        atualizarContador();
+        body: JSON.stringify({ usuario })
     });
+
+    const data = await res.json();
+
+    dados[usuario].pro = data.pro;
+    salvar();
+    atualizarContador();
 }
 
 // ================= CONTADOR =================
 
 function atualizarContador() {
-    const usuario = localStorage.getItem("detectorG_usuario");
+    const usuario = localStorage.getItem("usuario");
     const contador = document.getElementById("contador");
 
+    if (!contador) return;
+
     if (dados[usuario].pro) {
-        contador.textContent = "Plano PRO ativo (ilimitado)";
+        contador.textContent = "🔥 Plano PRO ativo (ilimitado)";
     } else {
-        contador.textContent = 
-            "Uso gratuito: " + dados[usuario].usos + "/" + LIMITE_DIARIO;
+        contador.textContent =
+            "Plano FREE: até 3 verificações por dia";
+    }
+}
+
+// ================= PAGAMENTO =================
+
+async function gerarPagamento() {
+    const usuario = localStorage.getItem("usuario");
+
+    const res = await fetch("/criar_pagamento", {
+        method: "POST",
+        headers: {"Content-Type":"application/json"},
+        body: JSON.stringify({ usuario })
+    });
+
+    const data = await res.json();
+
+    if (data.status === "ok") {
+
+        document.getElementById("qrCode").src =
+            "data:image/png;base64," + data.qr_code_base64;
+
+        document.getElementById("qrCode").style.display = "block";
+
+        document.getElementById("pixCode").value = data.pix;
+        document.getElementById("pixCode").style.display = "block";
+
+    } else {
+        alert("Erro ao gerar pagamento");
     }
 }
 
