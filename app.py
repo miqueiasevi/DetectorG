@@ -57,8 +57,6 @@ def index():
 def login():
     return render_template("login.html")
 
-# 🔥 REMOVIDO pro-system (causava erro se não existir arquivo)
-
 @app.route("/resultado")
 def resultado():
     return render_template("resultado.html")
@@ -113,15 +111,12 @@ def criar_pagamento():
         return jsonify({"status":"erro","mensagem":"Erro ao gerar pagamento"})
 
 # =========================
-# WEBHOOK (ATIVA PRO)
+# WEBHOOK
 # =========================
 
 @app.route("/webhook", methods=["POST"])
 def webhook():
     data = request.get_json(silent=True) or {}
-
-    if not data:
-        return jsonify({"status":"erro"})
 
     try:
         if data.get("type") == "payment":
@@ -141,7 +136,9 @@ def webhook():
 
                     usuarios[usuario] = {
                         "expira_em": expira_em.isoformat(),
-                        "tipo_plano": "pro"
+                        "tipo_plano": "pro",
+                        "uso_hoje": 0,
+                        "ultimo_dia": datetime.now().strftime("%Y-%m-%d")
                     }
 
                     salvar_json(USUARIOS_FILE, usuarios)
@@ -169,14 +166,14 @@ def status_pro():
     if datetime.now() < expira:
         return jsonify({
             "pro": True,
-            "tipo_plano": usuarios[usuario]["tipo_plano"],
+            "tipo_plano": "pro",
             "expira_em": expira.strftime("%d/%m/%Y")
         })
 
     return jsonify({"pro": False})
 
 # =========================
-# ANÁLISE FREE
+# FREE SCAN
 # =========================
 
 def basic_scan(link):
@@ -204,7 +201,7 @@ def basic_scan(link):
     }
 
 # =========================
-# VERIFICAR LINK
+# VERIFICAR (🔥 ATUALIZADO)
 # =========================
 
 @app.route("/verificar", methods=["POST"])
@@ -217,30 +214,52 @@ def verificar():
     if not link or not usuario:
         return jsonify({"status":"erro","mensagem":"Dados inválidos"})
 
-    # cria usuário automaticamente
+    # criar usuário automático
     if not usuario_existe(usuario):
         usuarios[usuario] = {
             "expira_em": datetime.now().isoformat(),
-            "tipo_plano": "free"
+            "tipo_plano": "free",
+            "uso_hoje": 0,
+            "ultimo_dia": datetime.now().strftime("%Y-%m-%d")
         }
         salvar_json(USUARIOS_FILE, usuarios)
 
-    pro_status = usuarios.get(usuario, {}).get("tipo_plano")
+    user = usuarios[usuario]
+    hoje = datetime.now().strftime("%Y-%m-%d")
 
-    if pro_status == "pro":
-        resultado = deep_scan(link)
-    else:
+    # reset diário
+    if user.get("ultimo_dia") != hoje:
+        user["uso_hoje"] = 0
+        user["ultimo_dia"] = hoje
+
+    # FREE limitado
+    if user.get("tipo_plano") != "pro":
+
+        if user.get("uso_hoje", 0) >= 3:
+            return jsonify({
+                "status": "erro",
+                "mensagem": "Limite diário atingido (3). Ative o PRO."
+            })
+
+        user["uso_hoje"] += 1
+        salvar_json(USUARIOS_FILE, usuarios)
+
         resultado = basic_scan(link)
+
+    # PRO ilimitado
+    else:
+        resultado = deep_scan(link)
 
     log_evento(f"{usuario} analisou {link}")
 
     return jsonify({
         "status":"ok",
-        "resultado": resultado
+        "resultado": resultado,
+        "restantes": 3 - user.get("uso_hoje", 0) if user.get("tipo_plano") != "pro" else "ilimitado"
     })
 
 # =========================
-# INICIAR
+# START
 # =========================
 
 if __name__ == "__main__":
