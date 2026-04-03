@@ -3,30 +3,146 @@
 <head>
   <meta charset="UTF-8">
   <title>DetectorG</title>
+
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="/static/css/style.css">
+
+  <style>
+    body {
+      background: #0f172a;
+      color: white;
+      font-family: Arial;
+      text-align: center;
+    }
+
+    .container {
+      margin-top: 50px;
+    }
+
+    input {
+      padding: 10px;
+      width: 300px;
+      border-radius: 8px;
+      border: none;
+      margin-top: 10px;
+    }
+
+    button {
+      padding: 10px 15px;
+      margin-top: 10px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+    }
+
+    .btn-principal {
+      background: #22c55e;
+      color: white;
+    }
+
+    .pro-card {
+      margin: 40px auto;
+      max-width: 350px;
+      padding: 20px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #1e293b, #020617);
+      border: 1px solid #22c55e;
+    }
+
+    .pro-btn {
+      background: #facc15;
+      color: black;
+      font-weight: bold;
+    }
+
+    textarea {
+      width: 100%;
+      margin-top: 10px;
+    }
+  </style>
 </head>
+
 <body>
 
-<header class="topo">
-  <div class="logo">
-    <i class="fa-solid fa-shield-halved"></i>
-    <span>DetectorG</span>
-  </div>
-  <p id="usuarioLogado" class="subtitulo"></p>
-</header>
+<h1>DetectorG funcionando 🚀</h1>
 
-<main class="container">
-  <div class="card">
-    <h2><i class="fa-solid fa-link"></i> Verificar link ou site</h2>
-    <input id="link" type="text" placeholder="Cole o link ou site aqui">
-    <button class="btn-principal" onclick="verificarLink()">
-      <i class="fa-solid fa-magnifying-glass"></i> Verificar
+<div class="container">
+
+  <!-- FREE -->
+  <h2>🔍 Verificar link</h2>
+
+  <input id="link" type="text" placeholder="Cole o link aqui">
+  <br>
+
+  <button class="btn-principal" onclick="verificarLink()">
+    Verificar
+  </button>
+
+  <p id="resultado"></p>
+
+  <!-- PRO -->
+  <div class="pro-card">
+    <h3>🚀 Plano PRO</h3>
+
+    <p>✔ Análise avançada</p>
+    <p>✔ Detecção de phishing</p>
+    <p>✔ Score detalhado</p>
+
+    <button class="pro-btn" onclick="comprarPro()">
+      Ativar por R$10
     </button>
-    <p id="resultado"></p>
-  </div>
-</main>
 
-<script src="/static/js/main.js"></script>
+    <div id="pix-area"></div>
+  </div>
+
+</div>
+
+<script>
+let usuario = localStorage.getItem("usuario") || "user_teste";
+localStorage.setItem("usuario", usuario);
+
+// VERIFICAR LINK
+async function verificarLink() {
+  let link = document.getElementById("link").value;
+
+  const res = await fetch("/verificar", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ link, usuario })
+  });
+
+  const data = await res.json();
+
+  if (data.status === "ok") {
+    document.getElementById("resultado").innerHTML =
+      `<b>Nível:</b> ${data.resultado.nivel} <br>
+       <b>Riscos:</b> ${data.resultado.riscos.join(", ")}`;
+  } else {
+    document.getElementById("resultado").innerText = data.mensagem;
+  }
+}
+
+// PAGAMENTO PIX
+async function comprarPro() {
+  const res = await fetch("/criar_pagamento", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ usuario })
+  });
+
+  const data = await res.json();
+
+  if (data.status === "ok") {
+    document.getElementById("pix-area").innerHTML = `
+      <p>Escaneie o QR Code:</p>
+      <img src="data:image/png;base64,${data.qr_code_base64}" width="200"/>
+      <p>PIX copia e cola:</p>
+      <textarea>${data.pix}</textarea>
+    `;
+  } else {
+    alert("Erro ao gerar pagamento");
+  }
+}
+</script>
+
 </body>
 </html>
