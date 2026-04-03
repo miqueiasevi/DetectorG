@@ -6,7 +6,6 @@
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-  <!-- CSS Flask -->
   <link rel="stylesheet" href="/static/css/style.css">
 </head>
 
@@ -43,17 +42,14 @@
 
   <div class="planos">
     <div class="plano destaque">
-
       <h4><i class="fa-solid fa-star"></i> PRO</h4>
       <p>✔ Verificações ilimitadas</p>
       <p>✔ Detecção avançada</p>
       <p>✔ Sem anúncios</p>
 
-      <!-- 🔥 CORREÇÃO: clique no botão -->
-      <button class="btn-secundario" type="button" onclick="abrirPagamento()">
+      <button class="btn-secundario" onclick="gerarPagamento()">
         Assinar PRO
       </button>
-
     </div>
   </div>
 
@@ -64,19 +60,19 @@
   <div class="modal-box plano destaque" onclick="event.stopPropagation()">
 
     <h4><i class="fa-solid fa-star"></i> Plano PRO</h4>
-    <p><strong>Valor:</strong> R$ 9,90/mês</p>
+    <p><strong>Valor:</strong> R$ 9,90</p>
 
-    <p><strong>Chave Pix:</strong></p>
+    <!-- QR CODE -->
+    <img id="qrCode" style="width:200px; display:none; margin:auto;">
 
-    <div class="pix-box">
-      <input id="pixKey" type="text" readonly value="53596e06-332a-4bcd-b6fd-57ed712bc14d">
-      <button class="btn-secundario" onclick="copiarPix()">Copiar</button>
-    </div>
+    <!-- PIX COPIAR -->
+    <textarea id="pixCode" readonly style="width:100%; display:none;"></textarea>
 
-    <p class="info">Após pagar, clique em ativar PRO</p>
+    <button class="btn-secundario" onclick="copiarPix()">Copiar código Pix</button>
 
-    <button class="btn-principal" onclick="ativarPRO()">Ativar PRO</button>
-    <button class="fechar" onclick="fecharPagamento()">Cancelar</button>
+    <p class="info">Após o pagamento, o PRO será ativado automaticamente.</p>
+
+    <button class="fechar" onclick="fecharPagamento()">Fechar</button>
 
   </div>
 </div>
@@ -85,34 +81,23 @@
 let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);
 localStorage.setItem("usuario", usuario);
 
-// ESPERA CARREGAR A PÁGINA
 document.addEventListener("DOMContentLoaded", () => {
-
-  // MOSTRAR USUÁRIO
   document.getElementById("usuarioLogado").innerText = "Usuário: " + usuario;
-
   carregarStatus();
 });
 
 // STATUS
 async function carregarStatus() {
-  try {
-    const res = await fetch("/status_pro", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ usuario })
-    });
+  const res = await fetch("/status_pro", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ usuario })
+  });
 
-    const data = await res.json();
+  const data = await res.json();
 
-    if (data.pro) {
-      document.getElementById("status").innerText = "🔥 PRO ativo";
-    } else {
-      document.getElementById("status").innerText = "Plano FREE (3/dia)";
-    }
-  } catch {
-    document.getElementById("status").innerText = "Erro ao conectar com servidor";
-  }
+  document.getElementById("status").innerText =
+    data.pro ? "🔥 PRO ativo" : "Plano FREE (3/dia)";
 }
 
 // VERIFICAR LINK
@@ -133,20 +118,42 @@ async function verificarLink() {
   const data = await res.json();
 
   if (data.status === "ok") {
-
     document.getElementById("resultado").innerHTML =
       `<b>Nível:</b> ${data.resultado.nivel}<br>
        <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;
 
-    if (data.restantes !== undefined) {
-      document.getElementById("contador").innerText =
-        "Restantes hoje: " + data.restantes;
-    } else {
-      document.getElementById("contador").innerText = "";
-    }
-
+    document.getElementById("contador").innerText =
+      data.restantes !== undefined ? "Restantes: " + data.restantes : "";
   } else {
     document.getElementById("resultado").innerText = data.mensagem;
+  }
+}
+
+// 🔥 GERAR PAGAMENTO REAL (MERCADO PAGO)
+async function gerarPagamento() {
+
+  abrirPagamento();
+
+  const res = await fetch("/criar_pagamento", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({ usuario })
+  });
+
+  const data = await res.json();
+
+  if (data.status === "ok") {
+
+    document.getElementById("qrCode").src =
+      "data:image/png;base64," + data.qr_code_base64;
+
+    document.getElementById("qrCode").style.display = "block";
+
+    document.getElementById("pixCode").value = data.pix;
+    document.getElementById("pixCode").style.display = "block";
+
+  } else {
+    alert("Erro ao gerar pagamento");
   }
 }
 
@@ -159,21 +166,9 @@ function fecharPagamento() {
   document.getElementById("pagamento").classList.add("hidden");
 }
 
-// ATIVAR PRO
-function ativarPRO() {
-  fetch("/ativar_manual", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ usuario })
-  }).then(() => {
-    alert("PRO ativado!");
-    location.reload();
-  });
-}
-
 // COPIAR PIX
 function copiarPix() {
-  let pix = document.getElementById("pixKey");
+  let pix = document.getElementById("pixCode");
   pix.select();
   document.execCommand("copy");
   alert("Pix copiado!");
@@ -181,4 +176,4 @@ function copiarPix() {
 </script>
 
 </body>
-</html>
+  </html>
