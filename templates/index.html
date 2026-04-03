@@ -1,95 +1,103 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-  <meta charset="UTF-8">
-  <title>DetectorG</title>
+<meta charset="UTF-8">
+<title>DetectorG</title>
 
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-  <style>
-    body {
-      background: #0f172a;
-      color: white;
-      font-family: Arial;
-      text-align: center;
-    }
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  background: #0f172a;
+  color: white;
+}
 
-    .container {
-      margin-top: 50px;
-    }
+header {
+  background: #1e3a8a;
+  padding: 15px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: bold;
+}
 
-    input {
-      padding: 10px;
-      width: 300px;
-      border-radius: 8px;
-      border: none;
-      margin-top: 10px;
-    }
+.container {
+  max-width: 900px;
+  margin: auto;
+  padding: 20px;
+}
 
-    button {
-      padding: 10px 15px;
-      margin-top: 10px;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-    }
+.card {
+  background: white;
+  color: black;
+  padding: 20px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+}
 
-    .btn-principal {
-      background: #22c55e;
-      color: white;
-    }
+input {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
 
-    .pro-card {
-      margin: 40px auto;
-      max-width: 350px;
-      padding: 20px;
-      border-radius: 12px;
-      background: linear-gradient(135deg, #1e293b, #020617);
-      border: 1px solid #22c55e;
-    }
+button {
+  margin-top: 10px;
+  padding: 10px;
+  width: 100%;
+  border: none;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+}
 
-    .pro-btn {
-      background: #facc15;
-      color: black;
-      font-weight: bold;
-    }
+.pro-card {
+  background: linear-gradient(135deg, #1e3a8a, #2563eb);
+  padding: 20px;
+  border-radius: 12px;
+  text-align: center;
+}
 
-    textarea {
-      width: 100%;
-      margin-top: 10px;
-    }
-  </style>
+.pro-btn {
+  background: #facc15;
+  color: black;
+}
+
+#pix-area img {
+  margin-top: 10px;
+}
+</style>
 </head>
 
 <body>
 
-<h1>DetectorG funcionando 🚀</h1>
+<header>
+  🛡️ DetectorG
+</header>
 
 <div class="container">
 
   <!-- FREE -->
-  <h2>🔍 Verificar link</h2>
-
-  <input id="link" type="text" placeholder="Cole o link aqui">
-  <br>
-
-  <button class="btn-principal" onclick="verificarLink()">
-    Verificar
-  </button>
-
-  <p id="resultado"></p>
+  <div class="card">
+    <h2>🔎 Verificar Link</h2>
+    <input id="link" placeholder="Cole o link aqui">
+    <button onclick="verificar()">Verificar</button>
+    <p id="resultado"></p>
+  </div>
 
   <!-- PRO -->
   <div class="pro-card">
-    <h3>🚀 Plano PRO</h3>
-
+    <h2>🚀 Plano PRO</h2>
     <p>✔ Análise avançada</p>
     <p>✔ Detecção de phishing</p>
-    <p>✔ Score detalhado</p>
+    <p>✔ Score completo</p>
 
-    <button class="pro-btn" onclick="comprarPro()">
-      Ativar por R$10
-    </button>
+    <button class="pro-btn" onclick="comprar()">Ativar por R$10</button>
 
     <div id="pix-area"></div>
   </div>
@@ -97,11 +105,11 @@
 </div>
 
 <script>
-let usuario = localStorage.getItem("usuario") || "user_teste";
+let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);
 localStorage.setItem("usuario", usuario);
 
 // VERIFICAR LINK
-async function verificarLink() {
+async function verificar() {
   let link = document.getElementById("link").value;
 
   const res = await fetch("/verificar", {
@@ -114,15 +122,13 @@ async function verificarLink() {
 
   if (data.status === "ok") {
     document.getElementById("resultado").innerHTML =
-      `<b>Nível:</b> ${data.resultado.nivel} <br>
-       <b>Riscos:</b> ${data.resultado.riscos.join(", ")}`;
-  } else {
-    document.getElementById("resultado").innerText = data.mensagem;
+      "Nível: " + data.resultado.nivel +
+      "<br>Riscos: " + data.resultado.riscos.join(", ");
   }
 }
 
-// PAGAMENTO PIX
-async function comprarPro() {
+// COMPRAR PRO
+async function comprar() {
   const res = await fetch("/criar_pagamento", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -138,8 +144,6 @@ async function comprarPro() {
       <p>PIX copia e cola:</p>
       <textarea>${data.pix}</textarea>
     `;
-  } else {
-    alert("Erro ao gerar pagamento");
   }
 }
 </script>
