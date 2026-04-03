@@ -53,16 +53,8 @@ usuarios = carregar_json(USUARIOS_FILE)
 def index():
     return render_template("index.html")
 
-@app.route("/login")
-def login():
-    return render_template("login.html")
-
-@app.route("/resultado")
-def resultado():
-    return render_template("resultado.html")
-
 # =========================
-# PAGAMENTO PIX
+# PAGAMENTO PIX (🔥 USADO PELO FRONT)
 # =========================
 
 @app.route("/criar_pagamento", methods=["POST"])
@@ -111,7 +103,7 @@ def criar_pagamento():
         return jsonify({"status":"erro","mensagem":"Erro ao gerar pagamento"})
 
 # =========================
-# WEBHOOK
+# WEBHOOK (ATIVA PRO AUTOMÁTICO)
 # =========================
 
 @app.route("/webhook", methods=["POST"])
@@ -150,7 +142,29 @@ def webhook():
     return jsonify({"status":"ok"})
 
 # =========================
-# STATUS PRO
+# ATIVAÇÃO MANUAL (TESTE)
+# =========================
+
+@app.route("/ativar_manual", methods=["POST"])
+def ativar_manual():
+    data = request.get_json()
+    usuario = limpar_input(data.get("usuario"))
+
+    expira_em = datetime.now() + timedelta(days=30)
+
+    usuarios[usuario] = {
+        "expira_em": expira_em.isoformat(),
+        "tipo_plano": "pro",
+        "uso_hoje": 0,
+        "ultimo_dia": datetime.now().strftime("%Y-%m-%d")
+    }
+
+    salvar_json(USUARIOS_FILE, usuarios)
+
+    return jsonify({"status":"ok"})
+
+# =========================
+# STATUS
 # =========================
 
 @app.route("/status_pro", methods=["POST"])
@@ -166,14 +180,13 @@ def status_pro():
     if datetime.now() < expira:
         return jsonify({
             "pro": True,
-            "tipo_plano": "pro",
             "expira_em": expira.strftime("%d/%m/%Y")
         })
 
     return jsonify({"pro": False})
 
 # =========================
-# FREE SCAN
+# SCAN
 # =========================
 
 def basic_scan(link):
@@ -186,7 +199,7 @@ def basic_scan(link):
         score += 30
 
     if any(d in url for d in [".exe",".apk",".zip",".rar",".msi"]):
-        riscos.append("Drive-by Download")
+        riscos.append("Malware")
         score += 50
 
     nivel = "🟢 Baixo"
@@ -194,15 +207,9 @@ def basic_scan(link):
     if score >= 70: nivel = "🔴 Alto"
 
     return {
-        "modo": "FREE",
         "nivel": nivel,
-        "score": score,
         "riscos": riscos
     }
-
-# =========================
-# VERIFICAR (🔥 ATUALIZADO)
-# =========================
 
 @app.route("/verificar", methods=["POST"])
 def verificar():
@@ -214,7 +221,6 @@ def verificar():
     if not link or not usuario:
         return jsonify({"status":"erro","mensagem":"Dados inválidos"})
 
-    # criar usuário automático
     if not usuario_existe(usuario):
         usuarios[usuario] = {
             "expira_em": datetime.now().isoformat(),
@@ -222,35 +228,29 @@ def verificar():
             "uso_hoje": 0,
             "ultimo_dia": datetime.now().strftime("%Y-%m-%d")
         }
-        salvar_json(USUARIOS_FILE, usuarios)
 
     user = usuarios[usuario]
     hoje = datetime.now().strftime("%Y-%m-%d")
 
-    # reset diário
     if user.get("ultimo_dia") != hoje:
         user["uso_hoje"] = 0
         user["ultimo_dia"] = hoje
 
-    # FREE limitado
     if user.get("tipo_plano") != "pro":
 
         if user.get("uso_hoje", 0) >= 3:
             return jsonify({
                 "status": "erro",
-                "mensagem": "Limite diário atingido (3). Ative o PRO."
+                "mensagem": "Limite diário atingido"
             })
 
         user["uso_hoje"] += 1
-        salvar_json(USUARIOS_FILE, usuarios)
-
         resultado = basic_scan(link)
 
-    # PRO ilimitado
     else:
         resultado = deep_scan(link)
 
-    log_evento(f"{usuario} analisou {link}")
+    salvar_json(USUARIOS_FILE, usuarios)
 
     return jsonify({
         "status":"ok",
