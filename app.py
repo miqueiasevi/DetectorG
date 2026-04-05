@@ -82,7 +82,7 @@ def criar_pagamento():
     }
 
     payload = {
-        "transaction_amount": 10.0,
+        "transaction_amount": 9.90,
         "description": "Plano PRO DetectorG",
         "payment_method_id": "pix",
         "payer": {
