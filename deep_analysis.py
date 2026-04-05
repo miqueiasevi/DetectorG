@@ -2,18 +2,29 @@ import requests
 import re
 from urllib.parse import urlparse
 
-# =========================
-# FUNÇÃO PRINCIPAL
-# =========================
-
 def deep_scan(url):
     riscos = []
     score = 0
 
+    # 🔥 CORREÇÃO: adiciona http automaticamente
+    if not url.startswith("http"):
+        url = "http://" + url
+
     try:
-        response = requests.get(url, timeout=5, allow_redirects=True)
+        headers = {
+            "User-Agent": "Mozilla/5.0"
+        }
+
+        response = requests.get(
+            url,
+            timeout=5,
+            allow_redirects=True,
+            headers=headers
+        )
+
         html = response.text.lower()
         history = response.history
+
     except:
         return {
             "score": 90,
@@ -34,6 +45,13 @@ def deep_scan(url):
         riscos.append("Domínio falsificado (typosquatting)")
         score += 40
 
+    # 🔥 NOVO: imitação de marcas
+    marcas = ["google", "facebook", "paypal", "instagram", "bank"]
+    for m in marcas:
+        if m in dominio and not dominio.startswith(m):
+            riscos.append(f"Possível phishing imitando {m}")
+            score += 35
+
     if "<input" in html and "password" in html:
         riscos.append("Página com campo de senha (possível phishing)")
         score += 30
@@ -53,8 +71,18 @@ def deep_scan(url):
         riscos.append("Script dinâmico suspeito")
         score += 20
 
+    # 🔥 NOVO: download oculto
+    if "download" in html and "<a" in html:
+        riscos.append("Download oculto detectado")
+        score += 25
+
+    # 🔥 NOVO: captura de teclado
+    if "keydown" in html or "keyup" in html:
+        riscos.append("Captura de teclado suspeita")
+        score += 35
+
     # =========================
-    # 🟠 3. XSS (BÁSICO)
+    # 🟠 3. XSS
     # =========================
     if "<script" in html:
         riscos.append("Uso de script (possível XSS)")
@@ -69,7 +97,7 @@ def deep_scan(url):
         score += 20
 
     # =========================
-    # 🟠 4. CSRF (BÁSICO)
+    # 🟠 4. CSRF
     # =========================
     if "<form" in html and "method=\"post\"" in html and "csrf" not in html:
         riscos.append("Formulário sem proteção CSRF")
@@ -89,7 +117,9 @@ def deep_scan(url):
     # =========================
     # 🟠 6. URL ENCURTADA
     # =========================
-    if any(short in dominio for short in ["bit.ly", "tinyurl", "goo.gl"]):
+    encurtadores = ["bit.ly", "tinyurl", "goo.gl", "t.co", "ow.ly"]
+
+    if any(short in dominio for short in encurtadores):
         riscos.append("URL encurtada (destino oculto)")
         score += 30
 
@@ -130,6 +160,13 @@ def deep_scan(url):
         score += 10
 
     # =========================
+    # 🟠 11. CRYPTO SCAM
+    # =========================
+    if "bitcoin" in html or "wallet" in html:
+        riscos.append("Possível golpe com criptomoeda")
+        score += 20
+
+    # =========================
     # 🎯 NORMALIZA SCORE
     # =========================
     score = min(score, 100)
@@ -148,4 +185,4 @@ def deep_scan(url):
         "score": score,
         "nivel": nivel,
         "riscos": riscos if riscos else ["Nenhum risco detectado"]
-        }
+            }
