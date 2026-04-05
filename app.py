@@ -9,7 +9,8 @@ CODIGOS_FILE = "codigos.json"
 USUARIOS_FILE = "usuarios.json"
 LOGS_FILE = "logs.json"
 
-MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN")
+# 🔥 COLOQUE SEU TOKEN AQUI (teste rápido)
+MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN") or "COLE_SEU_TOKEN_AQUI"
 
 # =========================
 # SEGURANÇA
@@ -46,7 +47,7 @@ codigos = carregar_json(CODIGOS_FILE)
 usuarios = carregar_json(USUARIOS_FILE)
 
 # =========================
-# ROTAS HTML
+# ROTAS
 # =========================
 
 @app.route("/")
@@ -54,13 +55,17 @@ def index():
     return render_template("index.html")
 
 # =========================
-# PAGAMENTO PIX (🔥 USADO PELO FRONT)
+# 🔥 PAGAMENTO PIX (CORRIGIDO)
 # =========================
 
 @app.route("/criar_pagamento", methods=["POST"])
 def criar_pagamento():
-    if not MP_ACCESS_TOKEN:
-        return jsonify({"status":"erro","mensagem":"Token não configurado"})
+
+    if not MP_ACCESS_TOKEN or "COLE_SEU_TOKEN_AQUI" in MP_ACCESS_TOKEN:
+        return jsonify({
+            "status":"erro",
+            "mensagem":"TOKEN DO MERCADO PAGO NÃO CONFIGURADO"
+        })
 
     data = request.get_json(silent=True) or {}
     usuario = limpar_input(data.get("usuario"))
@@ -89,6 +94,18 @@ def criar_pagamento():
         resposta = requests.post(url, json=payload, headers=headers)
         pagamento = resposta.json()
 
+        # 🔥 DEBUG IMPORTANTE
+        print("RESPOSTA MERCADO PAGO:")
+        print(pagamento)
+
+        # 🔥 VERIFICA SE DEU ERRO
+        if "point_of_interaction" not in pagamento:
+            return jsonify({
+                "status":"erro",
+                "mensagem":"Erro ao gerar PIX",
+                "debug": pagamento
+            })
+
         qr = pagamento["point_of_interaction"]["transaction_data"]["qr_code"]
         qr_base64 = pagamento["point_of_interaction"]["transaction_data"]["qr_code_base64"]
 
@@ -99,11 +116,14 @@ def criar_pagamento():
         })
 
     except Exception as e:
-        log_evento(f"Erro pagamento: {str(e)}")
-        return jsonify({"status":"erro","mensagem":"Erro ao gerar pagamento"})
+        print("ERRO PAGAMENTO:", str(e))
+        return jsonify({
+            "status":"erro",
+            "mensagem": str(e)
+        })
 
 # =========================
-# WEBHOOK (ATIVA PRO AUTOMÁTICO)
+# WEBHOOK
 # =========================
 
 @app.route("/webhook", methods=["POST"])
@@ -138,28 +158,6 @@ def webhook():
 
     except Exception as e:
         log_evento(f"Erro webhook: {str(e)}")
-
-    return jsonify({"status":"ok"})
-
-# =========================
-# ATIVAÇÃO MANUAL (TESTE)
-# =========================
-
-@app.route("/ativar_manual", methods=["POST"])
-def ativar_manual():
-    data = request.get_json()
-    usuario = limpar_input(data.get("usuario"))
-
-    expira_em = datetime.now() + timedelta(days=30)
-
-    usuarios[usuario] = {
-        "expira_em": expira_em.isoformat(),
-        "tipo_plano": "pro",
-        "uso_hoje": 0,
-        "ultimo_dia": datetime.now().strftime("%Y-%m-%d")
-    }
-
-    salvar_json(USUARIOS_FILE, usuarios)
 
     return jsonify({"status":"ok"})
 
