@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-import json, os, time, re, requests
+import json, os, time, re, requests, uuid
 from datetime import datetime, timedelta
 from deep_analysis import deep_scan
 
@@ -9,7 +9,7 @@ CODIGOS_FILE = "codigos.json"
 USUARIOS_FILE = "usuarios.json"
 LOGS_FILE = "logs.json"
 
-# 🔥 COLOQUE SEU TOKEN AQUI (teste rápido)
+# 🔥 TOKEN (usa variável do Render ou coloca direto)
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN") or "COLE_SEU_TOKEN_AQUI"
 
 # =========================
@@ -47,7 +47,7 @@ codigos = carregar_json(CODIGOS_FILE)
 usuarios = carregar_json(USUARIOS_FILE)
 
 # =========================
-# ROTAS
+# ROTA PRINCIPAL
 # =========================
 
 @app.route("/")
@@ -77,7 +77,8 @@ def criar_pagamento():
 
     headers = {
         "Authorization": f"Bearer {MP_ACCESS_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "X-Idempotency-Key": str(uuid.uuid4())  # 🔥 ESSENCIAL
     }
 
     payload = {
@@ -94,11 +95,10 @@ def criar_pagamento():
         resposta = requests.post(url, json=payload, headers=headers)
         pagamento = resposta.json()
 
-        # 🔥 DEBUG IMPORTANTE
         print("RESPOSTA MERCADO PAGO:")
         print(pagamento)
 
-        # 🔥 VERIFICA SE DEU ERRO
+        # 🔥 SE DER ERRO NA API
         if "point_of_interaction" not in pagamento:
             return jsonify({
                 "status":"erro",
