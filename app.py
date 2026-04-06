@@ -9,7 +9,6 @@ CODIGOS_FILE = "codigos.json"
 USUARIOS_FILE = "usuarios.json"
 LOGS_FILE = "logs.json"
 
-# 🔥 TOKEN (usa variável do Render ou coloca direto)
 MP_ACCESS_TOKEN = os.getenv("MP_ACCESS_TOKEN") or "COLE_SEU_TOKEN_AQUI"
 
 # =========================
@@ -55,7 +54,7 @@ def index():
     return render_template("index.html")
 
 # =========================
-# 🔥 PAGAMENTO PIX (CORRIGIDO)
+# PAGAMENTO PIX
 # =========================
 
 @app.route("/criar_pagamento", methods=["POST"])
@@ -78,7 +77,7 @@ def criar_pagamento():
     headers = {
         "Authorization": f"Bearer {MP_ACCESS_TOKEN}",
         "Content-Type": "application/json",
-        "X-Idempotency-Key": str(uuid.uuid4())  # 🔥 ESSENCIAL
+        "X-Idempotency-Key": str(uuid.uuid4())
     }
 
     payload = {
@@ -95,10 +94,6 @@ def criar_pagamento():
         resposta = requests.post(url, json=payload, headers=headers)
         pagamento = resposta.json()
 
-        print("RESPOSTA MERCADO PAGO:")
-        print(pagamento)
-
-        # 🔥 SE DER ERRO NA API
         if "point_of_interaction" not in pagamento:
             return jsonify({
                 "status":"erro",
@@ -116,7 +111,6 @@ def criar_pagamento():
         })
 
     except Exception as e:
-        print("ERRO PAGAMENTO:", str(e))
         return jsonify({
             "status":"erro",
             "mensagem": str(e)
@@ -154,7 +148,7 @@ def webhook():
                     }
 
                     salvar_json(USUARIOS_FILE, usuarios)
-                    log_evento(f"Pagamento aprovado: {usuario}")
+                    log_evento(f"[PRO ATIVADO] {usuario}")
 
     except Exception as e:
         log_evento(f"Erro webhook: {str(e)}")
@@ -246,13 +240,21 @@ def verificar():
         resultado = basic_scan(link)
 
     else:
-        resultado = deep_scan(link)
+        try:
+            resultado = deep_scan(link)
+        except:
+            resultado = {
+                "score": 90,
+                "nivel": "🔴 Alto",
+                "riscos": ["Erro na análise profunda"]
+            }
 
     salvar_json(USUARIOS_FILE, usuarios)
 
     return jsonify({
         "status":"ok",
         "resultado": resultado,
+        "score": resultado.get("score", 0),
         "restantes": 3 - user.get("uso_hoje", 0) if user.get("tipo_plano") != "pro" else "ilimitado"
     })
 
