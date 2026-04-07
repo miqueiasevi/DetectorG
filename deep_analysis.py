@@ -1,26 +1,27 @@
 import requests
 import re
 from urllib.parse import urlparse
-from threat_intel import check_threat_intel  # 🔥 INTEGRAÇÃO
+from threat_intel import check_threat_intel
 
 def deep_scan(url):
     riscos = []
-    score = 0
 
-    # 🔥 Corrige URL sem http
+    # 🔥 SCORES SEPARADOS (PROFISSIONAL)
+    phishing = 0
+    malware = 0
+    estrutura = 0
+    intel_score = 0
+
+    # Corrige URL
     if not url.startswith("http"):
         url = "http://" + url
 
     try:
-        headers = {
-            "User-Agent": "Mozilla/5.0"
-        }
-
         response = requests.get(
             url,
-            timeout=5,
+            timeout=6,
             allow_redirects=True,
-            headers=headers
+            headers={"User-Agent": "Mozilla/5.0"}
         )
 
         html = response.text.lower()
@@ -30,171 +31,167 @@ def deep_scan(url):
         return {
             "score": 90,
             "nivel": "🔴 Alto",
-            "riscos": ["Site inacessível (possível risco)"]
+            "confianca": 40,
+            "riscos": ["Site inacessível"]
         }
 
     dominio = urlparse(url).netloc.lower()
 
     # =========================
-    # 🔥 THREAT INTEL (NOVO)
+    # ✅ WHITELIST (ANTI FALSO POSITIVO)
+    # =========================
+    confiaveis = [
+        "google.com", "youtube.com", "github.com",
+        "microsoft.com", "apple.com", "amazon.com"
+    ]
+
+    if any(d in dominio for d in confiaveis):
+        return {
+            "score": 5,
+            "nivel": "🟢 Baixo",
+            "confianca": 98,
+            "riscos": ["Domínio confiável"]
+        }
+
+    # =========================
+    # 🌍 THREAT INTEL
     # =========================
     intel = check_threat_intel(url)
-    score += intel["score"]
+    intel_score += intel["score"]
     riscos.extend(intel["riscos"])
 
     # =========================
-    # 🔴 REDIRECIONAMENTO OCULTO
+    # 🔴 PHISHING
     # =========================
-    if response.url != url:
-        riscos.append("Redirecionamento oculto")
-        score += 25
-
-    # =========================
-    # 🔴 PHISHING AVANÇADO
-    # =========================
-    if any(p in url for p in ["login", "verify", "secure", "account"]):
-        riscos.append("Palavras típicas de phishing")
-        score += 15
+    if any(p in url for p in ["login", "verify", "secure", "account", "update"]):
+        phishing += 10
+        riscos.append("URL suspeita")
 
     if re.search(r"g00gle|faceb00k|paypa1|instagrarn", dominio):
-        riscos.append("Domínio falsificado (typosquatting)")
-        score += 40
-
-    marcas = ["google", "facebook", "paypal", "instagram", "bank"]
-    for m in marcas:
-        if m in dominio and m not in dominio.split(".")[0]:
-            riscos.append(f"Possível phishing imitando {m}")
-            score += 35
-
-    if "paypal" in html and "paypal.com" not in dominio:
-        riscos.append("Possível phishing de marca (PayPal)")
-        score += 50
+        phishing += 40
+        riscos.append("Domínio falsificado")
 
     if "<input" in html and "password" in html:
-        riscos.append("Página com campo de senha")
-        score += 30
+        phishing += 25
+        riscos.append("Captura de senha")
+
+    if "paypal" in html and "paypal.com" not in dominio:
+        phishing += 50
+        riscos.append("Phishing PayPal")
+
+    if "login" in html and "password" in html and not url.startswith("https"):
+        phishing += 30
+        riscos.append("Login inseguro")
+
+    # 🔥 NOVO: formulário externo
+    if "<form" in html and "action=http" in html:
+        phishing += 20
+        riscos.append("Formulário enviando para outro domínio")
 
     # =========================
-    # 🔴 MALWARE / SCRIPTS
+    # 🔴 MALWARE
     # =========================
     if any(url.endswith(ext) for ext in [".exe", ".apk", ".zip", ".rar"]):
-        riscos.append("Download potencialmente malicioso")
-        score += 60
+        malware += 60
+        riscos.append("Arquivo perigoso")
 
-    if "eval(" in html and "script" in html:
-        riscos.append("Execução dinâmica perigosa")
-        score += 40
+    if "eval(" in html:
+        malware += 30
+        riscos.append("Script suspeito")
 
     if "atob(" in html:
-        riscos.append("Código ofuscado detectado")
-        score += 40
+        malware += 25
+        riscos.append("Código oculto")
 
     if "document.write" in html:
-        riscos.append("Script dinâmico suspeito")
-        score += 20
-
-    if "download" in html and "<a" in html:
-        riscos.append("Download oculto detectado")
-        score += 25
+        malware += 15
+        riscos.append("Script dinâmico")
 
     if "keydown" in html or "keyup" in html:
-        riscos.append("Captura de teclado suspeita")
-        score += 35
+        malware += 25
+        riscos.append("Captura de teclado")
 
     # =========================
-    # 🟠 XSS
+    # 🟠 ESTRUTURA
     # =========================
-    if "<script" in html:
-        riscos.append("Uso de script (possível XSS)")
-        score += 20
+    if response.url != url:
+        estrutura += 15
+        riscos.append("Redirecionamento")
 
-    if "onerror=" in html or "onload=" in html:
-        riscos.append("Evento suspeito (XSS)")
-        score += 30
-
-    if "javascript:" in html:
-        riscos.append("Execução javascript suspeita")
-        score += 20
-
-    # =========================
-    # 🟠 CSRF
-    # =========================
-    if "<form" in html and "action=" in html:
-        riscos.append("Formulário enviando dados")
-        score += 25
-
-    if "<form" in html and "method=\"post\"" in html and "csrf" not in html:
-        riscos.append("Formulário sem proteção CSRF")
-        score += 25
-
-    # =========================
-    # 🟠 URL OFUSCADA
-    # =========================
-    if "@" in url:
-        riscos.append("URL ofuscada com @")
-        score += 30
-
-    if any(x in url for x in ["%20", "%3c", "%3e"]):
-        riscos.append("URL codificada/ofuscada")
-        score += 20
-
-    # =========================
-    # 🟠 URL ENCURTADA
-    # =========================
-    encurtadores = ["bit.ly", "tinyurl", "goo.gl", "t.co", "ow.ly"]
-
-    if any(short in dominio for short in encurtadores):
-        riscos.append("Link encurtado (destino escondido)")
-        score += 30
-
-    # =========================
-    # 🟠 REDIRECTS
-    # =========================
     if len(history) > 2:
-        riscos.append("Muitos redirecionamentos")
-        score += 30
+        estrutura += 20
+        riscos.append("Muitos redirects")
 
-    if "window.location" in html:
-        riscos.append("Redirecionamento via script")
-        score += 20
+    if "<iframe" in html:
+        estrutura += 10
+        riscos.append("Iframe")
 
-    # =========================
-    # 🟠 DOMÍNIO SUSPEITO
-    # =========================
+    if "@" in url:
+        estrutura += 20
+        riscos.append("URL mascarada")
+
+    if not url.startswith("https"):
+        estrutura += 10
+        riscos.append("Sem HTTPS")
+
+    if dominio.count("-") >= 3:
+        estrutura += 15
+        riscos.append("Domínio suspeito")
+
+    if len(dominio) > 30:
+        estrutura += 10
+        riscos.append("Domínio muito longo")
+
     if dominio.count(".") > 3:
+        estrutura += 10
         riscos.append("Muitos subdomínios")
-        score += 20
 
     if re.match(r"\d+\.\d+\.\d+\.\d+", dominio):
-        riscos.append("Uso de IP direto (pharming)")
-        score += 40
+        estrutura += 40
+        riscos.append("Uso de IP")
+
+    # 🔥 NOVO: encurtadores
+    if any(s in dominio for s in ["bit.ly", "tinyurl", "t.co"]):
+        estrutura += 25
+        riscos.append("Link encurtado")
 
     # =========================
-    # 🟠 IFRAME
+    # 🎯 NORMALIZAÇÃO
     # =========================
-    if "<iframe" in html:
-        riscos.append("Uso de iframe suspeito")
-        score += 20
+    phishing = min(phishing, 60)
+    malware = min(malware, 70)
+    estrutura = min(estrutura, 40)
+    intel_score = min(intel_score, 80)
 
     # =========================
-    # 🟠 HTTPS
+    # 🎯 SCORE FINAL (MELHORADO)
     # =========================
-    if not url.startswith("https"):
-        riscos.append("Sem HTTPS (inseguro)")
-        score += 10
+    score = (
+        phishing * 0.35 +
+        malware * 0.30 +
+        estrutura * 0.20 +
+        intel_score * 0.15
+    )
+
+    score = int(min(score, 100))
 
     # =========================
-    # 🟠 CRYPTO SCAM
+    # 🎯 CONFIANÇA (INTELIGENTE)
     # =========================
-    if "bitcoin" in html or "wallet" in html:
-        riscos.append("Possível golpe com criptomoeda")
-        score += 20
+    sinais = len(set(riscos))
+
+    if sinais == 0:
+        confianca = 95
+    elif sinais <= 2:
+        confianca = 70
+    elif sinais <= 5:
+        confianca = 80
+    else:
+        confianca = 90
 
     # =========================
-    # 🎯 SCORE FINAL
+    # 🎯 NÍVEL FINAL
     # =========================
-    score = min(score, 100)
-
     if score < 30:
         nivel = "🟢 Baixo"
     elif score < 70:
@@ -205,5 +202,6 @@ def deep_scan(url):
     return {
         "score": score,
         "nivel": nivel,
-        "riscos": riscos if riscos else ["Nenhum risco detectado"]
-    }
+        "confianca": confianca,
+        "riscos": list(set(riscos)) if riscos else ["Nenhum risco detectado"]
+        }
