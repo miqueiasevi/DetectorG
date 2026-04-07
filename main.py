@@ -1,5 +1,6 @@
 from crawler import crawler
 from deep_analysis import deep_scan
+from saver import salvar_resultado  # 💾 NOVO
 
 def iniciar():
     url = input("Digite a URL inicial: ").strip()
@@ -11,11 +12,14 @@ def iniciar():
 
     print(f"\n🌐 {len(urls_encontradas)} URLs encontradas\n")
 
-    # 2️⃣ Analisa cada URL com seu motor inteligente
+    # 2️⃣ Analisa cada URL
     for link in urls_encontradas:
         print(f"\n🔎 Analisando: {link}")
 
         resultado = deep_scan(link)
+
+        # 💾 SALVA AUTOMATICAMENTE
+        salvar_resultado(link, resultado)
 
         print(f"Score: {resultado['score']}")
         print(f"Nível: {resultado['nivel']}")
