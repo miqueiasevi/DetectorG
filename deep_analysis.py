@@ -1,6 +1,7 @@
 import requests
 import re
 from urllib.parse import urlparse
+from threat_intel import check_threat_intel  # 🔥 INTEGRAÇÃO
 
 def deep_scan(url):
     riscos = []
@@ -35,6 +36,13 @@ def deep_scan(url):
     dominio = urlparse(url).netloc.lower()
 
     # =========================
+    # 🔥 THREAT INTEL (NOVO)
+    # =========================
+    intel = check_threat_intel(url)
+    score += intel["score"]
+    riscos.extend(intel["riscos"])
+
+    # =========================
     # 🔴 REDIRECIONAMENTO OCULTO
     # =========================
     if response.url != url:
@@ -52,14 +60,12 @@ def deep_scan(url):
         riscos.append("Domínio falsificado (typosquatting)")
         score += 40
 
-    # 🔥 Imitação de marcas
     marcas = ["google", "facebook", "paypal", "instagram", "bank"]
     for m in marcas:
         if m in dominio and m not in dominio.split(".")[0]:
             riscos.append(f"Possível phishing imitando {m}")
             score += 35
 
-    # 🔥 Phishing PayPal direto
     if "paypal" in html and "paypal.com" not in dominio:
         riscos.append("Possível phishing de marca (PayPal)")
         score += 50
@@ -200,4 +206,4 @@ def deep_scan(url):
         "score": score,
         "nivel": nivel,
         "riscos": riscos if riscos else ["Nenhum risco detectado"]
-}
+    }
