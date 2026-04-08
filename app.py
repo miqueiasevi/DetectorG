@@ -26,7 +26,7 @@ def log_evento(msg):
     salvar_json(LOGS_FILE, logs)
 
 def usuario_existe(usuario):
-    return usuario in usuarios
+    return usuario in usuarios and isinstance(usuarios.get(usuario), dict)
 
 # =========================
 # JSON
@@ -92,9 +92,19 @@ def criar_pagamento():
 
     try:
         resposta = requests.post(url, json=payload, headers=headers)
-        pagamento = resposta.json()
 
-        if "point_of_interaction" not in pagamento:
+        try:
+            pagamento = resposta.json()
+        except:
+            return jsonify({
+                "status": "erro",
+                "mensagem": "Erro ao interpretar resposta do pagamento"
+            })
+
+        if (
+            "point_of_interaction" not in pagamento or
+            "transaction_data" not in pagamento["point_of_interaction"]
+        ):
             return jsonify({
                 "status":"erro",
                 "mensagem":"Erro ao gerar PIX",
@@ -103,6 +113,8 @@ def criar_pagamento():
 
         qr = pagamento["point_of_interaction"]["transaction_data"]["qr_code"]
         qr_base64 = pagamento["point_of_interaction"]["transaction_data"]["qr_code_base64"]
+
+        log_evento(f"[PIX GERADO] Usuario: {usuario}")
 
         return jsonify({
             "status":"ok",
@@ -134,7 +146,7 @@ def webhook():
             resposta = requests.get(url, headers=headers)
             pagamento = resposta.json()
 
-            if pagamento.get("status") == "approved":
+            if pagamento.get("status") in ["approved", "pending"]:
                 usuario = pagamento.get("external_reference")
 
                 if usuario:
@@ -241,7 +253,11 @@ def verificar():
 
     else:
         try:
-            resultado = deep_scan(link)
+            resultado = deep_scan(link) or {
+                "score": 50,
+                "nivel": "🟡 Médio",
+                "riscos": ["Falha na análise"]
+            }
         except:
             resultado = {
                 "score": 90,
