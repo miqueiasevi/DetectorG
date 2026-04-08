@@ -1,82 +1,3 @@
-<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <title>DetectorG</title>
-
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-  <link rel="stylesheet" href="/static/css/style.css">
-</head>
-
-<body>
-
-<header class="topo">
-  <div class="logo">
-    <i class="fa-solid fa-shield-halved"></i>
-    <span>DetectorG</span>
-  </div>
-  <p id="usuarioLogado" class="subtitulo"></p>
-</header>
-
-<main class="container">
-
-  <p id="status" class="status"></p>
-
-  <!-- VERIFICADOR -->
-  <div class="card">
-    <h2><i class="fa-solid fa-link"></i> Verificar link ou site</h2>
-
-    <input id="link" type="text" placeholder="Cole o link ou site aqui">
-
-    <button class="btn-principal" onclick="verificarLink()">
-      <i class="fa-solid fa-magnifying-glass"></i> Verificar
-    </button>
-
-    <p id="resultado" class="resultado"></p>
-    <p id="contador" class="contador"></p>
-  </div>
-
-  <!-- PLANOS -->
-  <h3 class="titulo-planos">Plano pago</h3>
-
-  <div class="planos">
-    <div class="plano destaque">
-      <h4><i class="fa-solid fa-star"></i> PRO</h4>
-      <p>✔ Verificações ilimitadas</p>
-      <p>✔ Detecção avançada</p>
-      <p>✔ Sem anúncios</p>
-
-      <!-- 🔥 BOTÃO CORRETO -->
-      <button class="btn-secundario" onclick="gerarPagamento()">
-        Assinar PRO
-      </button>
-    </div>
-  </div>
-
-</main>
-
-<!-- MODAL -->
-<div id="pagamento" class="modal hidden" onclick="fecharPagamento()">
-  <div class="modal-box plano destaque" onclick="event.stopPropagation()">
-
-    <h4><i class="fa-solid fa-star"></i> Plano PRO</h4>
-    <p><strong>Valor:</strong> R$ 9,90</p>
-
-    <!-- QR CODE -->
-    <img id="qrCode" style="width:200px; display:none; margin:20px auto;">
-
-    <!-- PIX COPIAR -->
-    <textarea id="pixCode" readonly style="width:100%; display:none;"></textarea>
-
-    <button class="btn-secundario" onclick="copiarPix()">Copiar código Pix</button>
-
-    <p class="info">Após o pagamento, o PRO será ativado automaticamente.</p>
-
-    <button class="fechar" onclick="fecharPagamento()">Fechar</button>
-
-  </div>
-</div>
-
 <script>
 let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);
 localStorage.setItem("usuario", usuario);
@@ -148,23 +69,35 @@ async function gerarPagamento() {
 
     const data = await res.json();
 
+    console.log("RESPOSTA PIX:", data); // 🔥 DEBUG
+
     if (data.status === "ok") {
 
-      // QR CODE
-      document.getElementById("qrCode").src =
-        "data:image/png;base64," + data.qr_code_base64;
+      // ✅ GARANTE QUE QR EXISTE
+      if (data.qr_code_base64) {
+        document.getElementById("qrCode").src =
+          "data:image/png;base64," + data.qr_code_base64;
 
-      document.getElementById("qrCode").style.display = "block";
+        document.getElementById("qrCode").style.display = "block";
+      } else {
+        alert("QR Code não recebido");
+      }
 
-      // PIX COPIA E COLA
-      document.getElementById("pixCode").value = data.pix;
-      document.getElementById("pixCode").style.display = "block";
+      // ✅ GARANTE PIX EXISTE
+      if (data.pix) {
+        document.getElementById("pixCode").value = data.pix;
+        document.getElementById("pixCode").style.display = "block";
+      } else {
+        alert("Código PIX não recebido");
+      }
 
     } else {
       alert(data.mensagem || "Erro ao gerar pagamento");
+      console.log("DEBUG:", data.debug);
     }
 
-  } catch {
+  } catch (e) {
+    console.error(e);
     alert("Erro ao conectar com servidor");
   }
 }
@@ -172,19 +105,37 @@ async function gerarPagamento() {
 // MODAL
 function abrirPagamento() {
   document.getElementById("pagamento").classList.remove("hidden");
+
+  // 🔥 LIMPA ANTES DE GERAR NOVO
+  document.getElementById("qrCode").style.display = "none";
+  document.getElementById("pixCode").style.display = "none";
 }
 
 function fecharPagamento() {
   document.getElementById("pagamento").classList.add("hidden");
 }
 
-// COPIAR PIX (🔥 MELHORADO)
+// COPIAR PIX (🔥 FUNCIONA EM QUALQUER AMBIENTE)
 function copiarPix() {
   let pix = document.getElementById("pixCode");
-  navigator.clipboard.writeText(pix.value);
+
+  if (!pix.value) {
+    alert("Nenhum código PIX disponível");
+    return;
+  }
+
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(pix.value)
+      .then(() => alert("Pix copiado!"))
+      .catch(() => copiarFallback(pix));
+  } else {
+    copiarFallback(pix);
+  }
+}
+
+function copiarFallback(elemento) {
+  elemento.select();
+  document.execCommand("copy");
   alert("Pix copiado!");
 }
 </script>
-
-</body>
-  </html>
