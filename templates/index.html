@@ -3,15 +3,15 @@ let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.rando
 localStorage.setItem("usuario", usuario);
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("usuarioLogado").innerText = "Usuário: " + usuario;
+
+  const userEl = document.getElementById("usuarioLogado");
+  if (userEl) userEl.innerText = "Usuário: " + usuario;
+
   carregarStatus();
 
-  // 🔥 GARANTE QUE O BOTÃO SEMPRE FUNCIONE
   setTimeout(() => {
     const btn = document.getElementById("btnPagamento");
-    if (btn) {
-      btn.onclick = gerarPagamento;
-    }
+    if (btn) btn.onclick = gerarPagamento;
   }, 300);
 });
 
@@ -21,22 +21,26 @@ async function carregarStatus() {
     const res = await fetch("/status_pro", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ usuario })
+      body: JSON.stringify({ usuario: localStorage.getItem("usuario") })
     });
 
     const data = await res.json();
 
-    document.getElementById("status").innerText =
-      data.pro ? "🔥 PRO ativo" : "Plano FREE (3/dia)";
+    const statusEl = document.getElementById("status");
+    if (statusEl) {
+      statusEl.innerText =
+        data.pro ? "🔥 PRO ativo" : "Plano FREE (3/dia)";
+    }
 
   } catch {
-    document.getElementById("status").innerText = "Erro ao conectar com servidor";
+    const statusEl = document.getElementById("status");
+    if (statusEl) statusEl.innerText = "Erro ao conectar com servidor";
   }
 }
 
 // VERIFICAR LINK
 async function verificarLink() {
-  let link = document.getElementById("link").value;
+  let link = document.getElementById("link")?.value;
 
   if (!link) {
     alert("Digite um link!");
@@ -46,24 +50,31 @@ async function verificarLink() {
   const res = await fetch("/verificar", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ link, usuario })
+    body: JSON.stringify({ link, usuario: localStorage.getItem("usuario") })
   });
 
   const data = await res.json();
 
-  if (data.status === "ok") {
-    document.getElementById("resultado").innerHTML =
-      `<b>Nível:</b> ${data.resultado.nivel}<br>
-       <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;
+  const resultadoEl = document.getElementById("resultado");
+  const contadorEl = document.getElementById("contador");
 
-    document.getElementById("contador").innerText =
-      data.restantes !== undefined ? "Restantes: " + data.restantes : "";
+  if (data.status === "ok") {
+    if (resultadoEl) {
+      resultadoEl.innerHTML =
+        `<b>Nível:</b> ${data.resultado.nivel}<br>
+         <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;
+    }
+
+    if (contadorEl && data.restantes !== undefined) {
+      contadorEl.innerText = "Restantes: " + data.restantes;
+    }
+
   } else {
-    document.getElementById("resultado").innerText = data.mensagem;
+    if (resultadoEl) resultadoEl.innerText = data.mensagem;
   }
 }
 
-// 🔥 PAGAMENTO
+// PAGAMENTO
 async function gerarPagamento() {
 
   abrirPagamento();
@@ -72,7 +83,7 @@ async function gerarPagamento() {
     const res = await fetch("/criar_pagamento", {
       method: "POST",
       headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ usuario })
+      body: JSON.stringify({ usuario: localStorage.getItem("usuario") })
     });
 
     const data = await res.json();
@@ -81,27 +92,21 @@ async function gerarPagamento() {
 
     if (data.status === "ok") {
 
-      // QR CODE
-      if (data.qr_code_base64) {
-        const qr = document.getElementById("qrCode");
+      const qr = document.getElementById("qrCode");
+      const pix = document.getElementById("pixCode");
+
+      if (qr && data.qr_code_base64) {
         qr.src = "data:image/png;base64," + data.qr_code_base64;
         qr.style.display = "block";
-      } else {
-        alert("QR Code não recebido");
       }
 
-      // PIX
-      if (data.pix) {
-        const pix = document.getElementById("pixCode");
+      if (pix && data.pix) {
         pix.value = data.pix;
         pix.style.display = "block";
-      } else {
-        alert("Código PIX não recebido");
       }
 
     } else {
       alert(data.mensagem || "Erro ao gerar pagamento");
-      console.log("DEBUG:", data.debug);
     }
 
   } catch (e) {
@@ -112,21 +117,24 @@ async function gerarPagamento() {
 
 // MODAL
 function abrirPagamento() {
-  document.getElementById("pagamento").classList.remove("hidden");
+  document.getElementById("pagamento")?.classList.remove("hidden");
 
-  document.getElementById("qrCode").style.display = "none";
-  document.getElementById("pixCode").style.display = "none";
+  const qr = document.getElementById("qrCode");
+  const pix = document.getElementById("pixCode");
+
+  if (qr) qr.style.display = "none";
+  if (pix) pix.style.display = "none";
 }
 
 function fecharPagamento() {
-  document.getElementById("pagamento").classList.add("hidden");
+  document.getElementById("pagamento")?.classList.add("hidden");
 }
 
-// 🔥 COPIAR PIX
+// COPIAR PIX
 function copiarPix() {
   let pix = document.getElementById("pixCode");
 
-  if (!pix.value) {
+  if (!pix || !pix.value) {
     alert("Nenhum código PIX disponível");
     return;
   }
@@ -143,8 +151,7 @@ function copiarPix() {
 function copiarFallback(elemento) {
   elemento.style.display = "block";
   elemento.select();
-  elemento.setSelectionRange(0, 99999);
   document.execCommand("copy");
   alert("Pix copiado!");
 }
-    </script>
+</script>
