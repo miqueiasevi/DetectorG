@@ -1,157 +1,149 @@
-<script>
-let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);
-localStorage.setItem("usuario", usuario);
-
-document.addEventListener("DOMContentLoaded", () => {
-
-  const userEl = document.getElementById("usuarioLogado");
-  if (userEl) userEl.innerText = "Usuário: " + usuario;
-
-  carregarStatus();
-
-  setTimeout(() => {
-    const btn = document.getElementById("btnPagamento");
-    if (btn) btn.onclick = gerarPagamento;
-  }, 300);
-});
-
-// STATUS
-async function carregarStatus() {
-  try {
-    const res = await fetch("/status_pro", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ usuario: localStorage.getItem("usuario") })
-    });
-
-    const data = await res.json();
-
-    const statusEl = document.getElementById("status");
-    if (statusEl) {
-      statusEl.innerText =
-        data.pro ? "🔥 PRO ativo" : "Plano FREE (3/dia)";
-    }
-
-  } catch {
-    const statusEl = document.getElementById("status");
-    if (statusEl) statusEl.innerText = "Erro ao conectar com servidor";
-  }
-}
-
-// VERIFICAR LINK
-async function verificarLink() {
-  let link = document.getElementById("link")?.value;
-
-  if (!link) {
-    alert("Digite um link!");
-    return;
-  }
-
-  const res = await fetch("/verificar", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({ link, usuario: localStorage.getItem("usuario") })
-  });
-
-  const data = await res.json();
-
-  const resultadoEl = document.getElementById("resultado");
-  const contadorEl = document.getElementById("contador");
-
-  if (data.status === "ok") {
-    if (resultadoEl) {
-      resultadoEl.innerHTML =
-        `<b>Nível:</b> ${data.resultado.nivel}<br>
-         <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;
-    }
-
-    if (contadorEl && data.restantes !== undefined) {
-      contadorEl.innerText = "Restantes: " + data.restantes;
-    }
-
-  } else {
-    if (resultadoEl) resultadoEl.innerText = data.mensagem;
-  }
-}
-
-// PAGAMENTO
-async function gerarPagamento() {
-
-  abrirPagamento();
-
-  try {
-    const res = await fetch("/criar_pagamento", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify({ usuario: localStorage.getItem("usuario") })
-    });
-
-    const data = await res.json();
-
-    console.log("RESPOSTA PIX:", data);
-
-    if (data.status === "ok") {
-
-      const qr = document.getElementById("qrCode");
-      const pix = document.getElementById("pixCode");
-
-      if (qr && data.qr_code_base64) {
-        qr.src = "data:image/png;base64," + data.qr_code_base64;
-        qr.style.display = "block";
-      }
-
-      if (pix && data.pix) {
-        pix.value = data.pix;
-        pix.style.display = "block";
-      }
-
-    } else {
-      alert(data.mensagem || "Erro ao gerar pagamento");
-    }
-
-  } catch (e) {
-    console.error(e);
-    alert("Erro ao conectar com servidor");
-  }
-}
-
-// MODAL
-function abrirPagamento() {
-  document.getElementById("pagamento")?.classList.remove("hidden");
-
-  const qr = document.getElementById("qrCode");
-  const pix = document.getElementById("pixCode");
-
-  if (qr) qr.style.display = "none";
-  if (pix) pix.style.display = "none";
-}
-
-function fecharPagamento() {
-  document.getElementById("pagamento")?.classList.add("hidden");
-}
-
-// COPIAR PIX
-function copiarPix() {
-  let pix = document.getElementById("pixCode");
-
-  if (!pix || !pix.value) {
-    alert("Nenhum código PIX disponível");
-    return;
-  }
-
-  if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard.writeText(pix.value)
-      .then(() => alert("Pix copiado!"))
-      .catch(() => copiarFallback(pix));
-  } else {
-    copiarFallback(pix);
-  }
-}
-
-function copiarFallback(elemento) {
-  elemento.style.display = "block";
-  elemento.select();
-  document.execCommand("copy");
-  alert("Pix copiado!");
-}
-</script>
+<script>  
+let usuario = localStorage.getItem("usuario") || "user_" + Math.floor(Math.random()*10000);  
+localStorage.setItem("usuario", usuario);  
+  
+document.addEventListener("DOMContentLoaded", () => {  
+  document.getElementById("usuarioLogado").innerText = "Usuário: " + usuario;  
+  carregarStatus();  
+  
+  // 🔥 NOVO: garante botão funcionando 100%  
+  const btn = document.getElementById("btnPagamento");  
+  if (btn) {  
+    btn.addEventListener("click", gerarPagamento);  
+  }  
+});  
+  
+// STATUS  
+async function carregarStatus() {  
+  try {  
+    const res = await fetch("/status_pro", {  
+      method: "POST",  
+      headers: {"Content-Type":"application/json"},  
+      body: JSON.stringify({ usuario })  
+    });  
+  
+    const data = await res.json();  
+  
+    document.getElementById("status").innerText =  
+      data.pro ? "🔥 PRO ativo" : "Plano FREE (3/dia)";  
+  
+  } catch {  
+    document.getElementById("status").innerText = "Erro ao conectar com servidor";  
+  }  
+}  
+  
+// VERIFICAR LINK  
+async function verificarLink() {  
+  let link = document.getElementById("link").value;  
+  
+  if (!link) {  
+    alert("Digite um link!");  
+    return;  
+  }  
+  
+  const res = await fetch("/verificar", {  
+    method: "POST",  
+    headers: {"Content-Type":"application/json"},  
+    body: JSON.stringify({ link, usuario })  
+  });  
+  
+  const data = await res.json();  
+  
+  if (data.status === "ok") {  
+    document.getElementById("resultado").innerHTML =  
+      `<b>Nível:</b> ${data.resultado.nivel}<br>  
+       <b>Riscos:</b> ${data.resultado.riscos.join(", ") || "Nenhum"}`;  
+  
+    document.getElementById("contador").innerText =  
+      data.restantes !== undefined ? "Restantes: " + data.restantes : "";  
+  } else {  
+    document.getElementById("resultado").innerText = data.mensagem;  
+  }  
+}  
+  
+// 🔥 PAGAMENTO  
+async function gerarPagamento() {  
+  
+  abrirPagamento();  
+  
+  try {  
+    const res = await fetch("/criar_pagamento", {  
+      method: "POST",  
+      headers: {"Content-Type":"application/json"},  
+      body: JSON.stringify({ usuario })  
+    });  
+  
+    const data = await res.json();  
+  
+    console.log("RESPOSTA PIX:", data);  
+  
+    if (data.status === "ok") {  
+  
+      // QR CODE  
+      if (data.qr_code_base64) {  
+        document.getElementById("qrCode").src =  
+          "data:image/png;base64," + data.qr_code_base64;  
+  
+        document.getElementById("qrCode").style.display = "block";  
+      } else {  
+        alert("QR Code não recebido");  
+      }  
+  
+      // PIX  
+      if (data.pix) {  
+        document.getElementById("pixCode").value = data.pix;  
+        document.getElementById("pixCode").style.display = "block";  
+      } else {  
+        alert("Código PIX não recebido");  
+      }  
+  
+    } else {  
+      alert(data.mensagem || "Erro ao gerar pagamento");  
+      console.log("DEBUG:", data.debug);  
+    }  
+  
+  } catch (e) {  
+    console.error(e);  
+    alert("Erro ao conectar com servidor");  
+  }  
+}  
+  
+// MODAL  
+function abrirPagamento() {  
+  document.getElementById("pagamento").classList.remove("hidden");  
+  
+  // 🔥 limpa antes de gerar novo  
+  document.getElementById("qrCode").style.display = "none";  
+  document.getElementById("pixCode").style.display = "none";  
+}  
+  
+function fecharPagamento() {  
+  document.getElementById("pagamento").classList.add("hidden");  
+}  
+  
+// 🔥 COPIAR PIX (funciona em todos celulares)  
+function copiarPix() {  
+  let pix = document.getElementById("pixCode");  
+  
+  if (!pix.value) {  
+    alert("Nenhum código PIX disponível");  
+    return;  
+  }  
+  
+  if (navigator.clipboard && window.isSecureContext) {  
+    navigator.clipboard.writeText(pix.value)  
+      .then(() => alert("Pix copiado!"))  
+      .catch(() => copiarFallback(pix));  
+  } else {  
+    copiarFallback(pix);  
+  }  
+}  
+  
+function copiarFallback(elemento) {  
+  elemento.style.display = "block";  
+  elemento.select();  
+  elemento.setSelectionRange(0, 99999);  
+  document.execCommand("copy");  
+  alert("Pix copiado!");  
+}  
+</script> 
