@@ -5,6 +5,14 @@ localStorage.setItem("usuario", usuario);
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("usuarioLogado").innerText = "Usuário: " + usuario;
   carregarStatus();
+
+  // 🔥 GARANTE QUE O BOTÃO SEMPRE FUNCIONE
+  setTimeout(() => {
+    const btn = document.getElementById("btnPagamento");
+    if (btn) {
+      btn.onclick = gerarPagamento;
+    }
+  }, 300);
 });
 
 // STATUS
@@ -55,7 +63,7 @@ async function verificarLink() {
   }
 }
 
-// 🔥 PAGAMENTO REAL MERCADO PAGO
+// 🔥 PAGAMENTO
 async function gerarPagamento() {
 
   abrirPagamento();
@@ -69,24 +77,24 @@ async function gerarPagamento() {
 
     const data = await res.json();
 
-    console.log("RESPOSTA PIX:", data); // 🔥 DEBUG
+    console.log("RESPOSTA PIX:", data);
 
     if (data.status === "ok") {
 
-      // ✅ GARANTE QUE QR EXISTE
+      // QR CODE
       if (data.qr_code_base64) {
-        document.getElementById("qrCode").src =
-          "data:image/png;base64," + data.qr_code_base64;
-
-        document.getElementById("qrCode").style.display = "block";
+        const qr = document.getElementById("qrCode");
+        qr.src = "data:image/png;base64," + data.qr_code_base64;
+        qr.style.display = "block";
       } else {
         alert("QR Code não recebido");
       }
 
-      // ✅ GARANTE PIX EXISTE
+      // PIX
       if (data.pix) {
-        document.getElementById("pixCode").value = data.pix;
-        document.getElementById("pixCode").style.display = "block";
+        const pix = document.getElementById("pixCode");
+        pix.value = data.pix;
+        pix.style.display = "block";
       } else {
         alert("Código PIX não recebido");
       }
@@ -106,7 +114,6 @@ async function gerarPagamento() {
 function abrirPagamento() {
   document.getElementById("pagamento").classList.remove("hidden");
 
-  // 🔥 LIMPA ANTES DE GERAR NOVO
   document.getElementById("qrCode").style.display = "none";
   document.getElementById("pixCode").style.display = "none";
 }
@@ -115,7 +122,7 @@ function fecharPagamento() {
   document.getElementById("pagamento").classList.add("hidden");
 }
 
-// COPIAR PIX (🔥 FUNCIONA EM QUALQUER AMBIENTE)
+// 🔥 COPIAR PIX
 function copiarPix() {
   let pix = document.getElementById("pixCode");
 
@@ -124,7 +131,7 @@ function copiarPix() {
     return;
   }
 
-  if (navigator.clipboard) {
+  if (navigator.clipboard && window.isSecureContext) {
     navigator.clipboard.writeText(pix.value)
       .then(() => alert("Pix copiado!"))
       .catch(() => copiarFallback(pix));
@@ -134,8 +141,10 @@ function copiarPix() {
 }
 
 function copiarFallback(elemento) {
+  elemento.style.display = "block";
   elemento.select();
+  elemento.setSelectionRange(0, 99999);
   document.execCommand("copy");
   alert("Pix copiado!");
 }
-</script>
+    </script>
